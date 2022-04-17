@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// Represents all types of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Kind {
@@ -38,6 +40,25 @@ impl Piece {
     /// Returns the [`Color`] of the piece.
     pub fn get_color(&self) -> Color {
         self.color
+    }
+}
+
+impl Display for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut ch = match self.get_kind() {
+            Kind::Pawn   => 'p',
+            Kind::Rook   => 'r',
+            Kind::Knight => 'n',
+            Kind::Bishop => 'b',
+            Kind::Queen  => 'q',
+            Kind::King   => 'k',
+        };
+
+        if self.get_color() == Color::White {
+            ch = ch.to_ascii_uppercase();
+        }
+
+        write!(f, "{}", ch)
     }
 }
 
@@ -104,6 +125,8 @@ mod tests {
             let expected_piece = Piece::new(kind, Color::Black);
             let piece = Piece::try_from(ch).unwrap();
             assert_eq!(expected_piece, piece);
+            // check the Display implementation
+            assert_eq!(ch.to_string(), piece.to_string());
         }
         
         // check valid white chars
@@ -111,6 +134,8 @@ mod tests {
             let expected_piece = Piece::new(kind, Color::White);
             let piece = Piece::try_from(ch).unwrap();
             assert_eq!(expected_piece, piece);
+            // check the Display implementation
+            assert_eq!(ch.to_string(), piece.to_string());
         }
     }
 
