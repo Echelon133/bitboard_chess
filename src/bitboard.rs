@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::square;
 
 /// Represents the entire chessboard in 8 bytes, where each square is 
@@ -62,6 +64,22 @@ impl Bitboard {
     /// Returns an iterator which gives out [`square::Square`] set by this bitboard.
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
+    }
+}
+
+impl Debug for Bitboard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for rank in (1..=8).rev() {
+            // every rank consists of 8 bits, so we need to get to those that
+            // represent the rank from this loop 
+            let rank_bits = ((self.bits >> ((rank-1) * 8)) & 0b11111111) as u8;
+            // since the least significant bit is always righmost in the number
+            // but represents the leftmost square, 
+            // reverse the bits before displaying
+            let rank_bits = rank_bits.reverse_bits();
+            write!(f, "{} {:08b}\n", rank, rank_bits)?;
+        }
+        write!(f, "  abcdefgh")
     }
 }
 
@@ -214,5 +232,102 @@ mod tests {
         assert!(collected.contains(&square::Square::try_from("a8").unwrap()));
         assert!(collected.contains(&square::Square::try_from("h1").unwrap()));
         assert!(collected.contains(&square::Square::try_from("h8").unwrap()));        
+    }
+
+    #[test]
+    fn bitboard_debug_is_correct_for_empty() {
+        let bitboard = Bitboard::default();
+
+        let expected_empty = r#"8 00000000
+7 00000000
+6 00000000
+5 00000000
+4 00000000
+3 00000000
+2 00000000
+1 00000000
+  abcdefgh"#;
+
+        let empty_debug = format!("{:?}", bitboard);
+        assert_eq!(expected_empty, empty_debug);
+
+        //for file in 'a'..='h' {
+        //    let square = format!("{}1", file);
+        //    bitboard.set(square::Square::try_from(square.as_ref()).unwrap());
+        //}
+        //println!("{:?}", bitboard);
+    }
+
+    #[test]
+    fn bitboard_debug_is_correct_for_corners() {
+        let mut bitboard = Bitboard::default();
+
+        let corners = ["a1", "h1", "a8", "h8"];
+        for corner in corners {
+            bitboard.set(square::Square::try_from(corner).unwrap());
+        }
+        
+        let expected_corners = r#"8 10000001
+7 00000000
+6 00000000
+5 00000000
+4 00000000
+3 00000000
+2 00000000
+1 10000001
+  abcdefgh"#;
+
+        let corners_debug = format!("{:?}", bitboard);
+        assert_eq!(expected_corners, corners_debug);
+    }
+
+    #[test]
+    fn bitboard_debug_is_correct_for_ranks() {
+        let mut bitboard = Bitboard::default();
+        
+        for file in 'a'..='h' {
+            for rank in ['1', '3', '5', '7'] {
+                let square = format!("{}{}", file, rank);
+                bitboard.set(square::Square::try_from(square.as_ref()).unwrap());
+            }
+        }
+
+        let expected_ranks = r#"8 00000000
+7 11111111
+6 00000000
+5 11111111
+4 00000000
+3 11111111
+2 00000000
+1 11111111
+  abcdefgh"#;
+
+        let ranks_debug = format!("{:?}", bitboard);
+        assert_eq!(expected_ranks, ranks_debug);
+    }
+
+    #[test]
+    fn bitboard_debug_is_correct_for_files() {
+        let mut bitboard = Bitboard::default();
+        
+        for file in ['a', 'c', 'e', 'g'] {
+            for rank in '1'..='8' {
+                let square = format!("{}{}", file, rank);
+                bitboard.set(square::Square::try_from(square.as_ref()).unwrap());
+            }
+        }
+
+        let expected_files = r#"8 10101010
+7 10101010
+6 10101010
+5 10101010
+4 10101010
+3 10101010
+2 10101010
+1 10101010
+  abcdefgh"#;
+
+        let files_debug = format!("{:?}", bitboard);
+        assert_eq!(expected_files, files_debug);
     }
 }
