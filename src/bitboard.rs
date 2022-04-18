@@ -65,6 +65,9 @@ impl Bitboard {
     }
 }
 
+/// Iterator which returns [`square::Square`] objects of all bits
+/// that are set on the bitboard.
+///
 pub struct SquareIter {
     bits: u64,
     shift: u8,
@@ -72,6 +75,8 @@ pub struct SquareIter {
 }
 
 impl SquareIter {
+
+    /// Creates an iterator over the squares set on the bitboard.
     pub fn new(bboard: &Bitboard) -> Self {
         Self {
             bits: bboard.get_bits(),
@@ -84,6 +89,13 @@ impl SquareIter {
 impl Iterator for SquareIter {
     type Item = square::Square;
 
+    /// Advances the iterator and returns the next [`square::Square`] that's
+    /// set on the bitboard. Because of the way this iterator works, each next
+    /// square is given out in order left-to-right and bottom-to-top.
+    ///
+    /// It's guaranteed that:
+    /// - 'a1' will always be given out before 'b1', 'b1' before 'c1', etc.
+    /// - squares from rank '1' will always be given out before squares from rank '2', etc.
     fn next(&mut self) -> Option<Self::Item> {
         if self.size == 0 {
             None
