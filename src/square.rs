@@ -11,7 +11,7 @@ static RANKS : [Rank; 8] = [
 ];
 
 /// Represents a file on the chessboard.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum File {
     A, B, C, D, E, F, G, H
 }
@@ -46,8 +46,39 @@ impl TryFrom<usize> for File {
     }
 }
 
+impl TryFrom<char> for File {
+    type Error = &'static str;
+    
+    /// Converts a single numeric character from 'a'..='h' range
+    /// (lowercase or uppercase) into a [`File`] that represents that character. 
+    ///
+    /// This means that:
+    /// - 'a' gives File::A,
+    /// - 'A' gives File::A,
+    /// - 'b' gives File::B,
+    /// - 'B' gives File::B,
+    /// - etc.
+    /// 
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        let file = match value.to_ascii_lowercase() {
+            'a' => File::A,
+            'b' => File::B,
+            'c' => File::C,
+            'd' => File::D,
+            'e' => File::E,
+            'f' => File::F,
+            'g' => File::G,
+            'h' => File::H,
+            _ => {
+                return Err("character cannot represent a file");
+            }
+        };
+        Ok(file)
+    }
+}
+
 /// Represents a rank on the chessboard.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Rank {
     R1, R2, R3, R4, R5, R6, R7, R8
 }
@@ -82,6 +113,33 @@ impl TryFrom<usize> for Rank {
     }
 }
 
+impl TryFrom<char> for Rank {
+    type Error = &'static str;
+
+    /// Converts a single numeric character from '1'..='8' range into
+    /// a [`Rank`] that represents that number. This means that:
+    /// - '1' gives Rank::R1
+    /// - '2' gives Rank::R2
+    /// - etc.
+    /// 
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        let rank = match value {
+            '1' => Rank::R1,
+            '2' => Rank::R2,
+            '3' => Rank::R3,
+            '4' => Rank::R4,
+            '5' => Rank::R5,
+            '6' => Rank::R6,
+            '7' => Rank::R7,
+            '8' => Rank::R8,
+            _ => {
+                return Err("character cannot represent a rank");
+            }
+        };
+        Ok(rank)
+    }
+}
+
 /// Represents a single square on the board with precise coordinates specified 
 /// by the Square's [`File`] and [`Rank`].
 ///
@@ -96,9 +154,10 @@ impl TryFrom<usize> for Rank {
 ///
 /// Index of the square = (rank_index * 8) + file_index
 ///
-/// Bottom-left corner of the board has (0, 0) indexes, when
-/// top-right corner of the board has (7, 7) indexes.
-#[derive(Clone, Copy)]
+/// Bottom-left corner of the board is represented by a following pair 
+/// of indexes: (0, 0). The top-right corner of the board is represented by
+/// a (7, 7) pair.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Square {
     square_index: u8,
 }
@@ -159,6 +218,39 @@ impl Square {
     }
 }
 
+impl From<u8> for Square {
+    fn from(v: u8) -> Self {
+        assert!(v < 64);
+        Self { square_index: v }
+    }
+}
+
+impl TryFrom<&str> for Square {
+    type Error = &'static str;
+
+    /// Converts values such as 'a1', 'g5', 'c5', etc.
+    /// into actual [`Square`] that represents that square
+    /// on the board.
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if !value.is_ascii() {
+            return Err("cannot contain non-ascii characters");
+        }
+
+        if value.len() != 2 {
+            return Err("must contain exactly 2 characters");
+        }
+
+        let (file, rank) = {
+            let mut iter = value.chars();
+            (iter.next().unwrap(), iter.next().unwrap())
+        };
+
+        let file = File::try_from(file)?;
+        let rank = Rank::try_from(rank)?;
+        Ok(Square::new(rank, file))
+    }
+}
+
 impl Debug for Square {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", self.get_file().as_char(), self.get_rank().as_char())   
@@ -191,13 +283,41 @@ mod tests {
     }
 
     #[test]
-    fn files_try_from_correctly_checks_bounardies() {
+    fn files_try_from_usize_correctly_checks_boundardies() {
         for index in 0usize..=7usize {
             assert!(File::try_from(index).is_ok());
         }
 
         for index in 8usize..=1000usize {
             assert!(File::try_from(index).is_err());
+        }
+    }
+
+    #[test]
+    fn files_try_from_char_converts_correctly() {
+        let valid = [
+            ('a', File::A), ('b', File::B), ('c', File::C), ('d', File::D),
+            ('e', File::E), ('f', File::F), ('g', File::G), ('h', File::H)
+        ];
+        
+        // converted works both for uppercase and lowercase
+        for (ch, expected_file) in valid {
+            let converted_lowercase = File::try_from(ch).unwrap();
+            let converted_uppercase = File::try_from(ch.to_ascii_uppercase()).unwrap();
+            assert_eq!(expected_file, converted_lowercase);
+            assert_eq!(expected_file, converted_uppercase);
+        }
+
+        for ch in 'i'..='z' {
+            let converted = File::try_from(ch);
+            assert!(converted.is_err());
+            assert_eq!(converted.unwrap_err(), "character cannot represent a file");
+        }
+
+        for ch in 'I'..='Z' {
+            let converted = File::try_from(ch);
+            assert!(converted.is_err());
+            assert_eq!(converted.unwrap_err(), "character cannot represent a file");
         }
     }
 
@@ -222,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn ranks_try_from_correctly_checks_bounardies() {
+    fn ranks_try_from_usize_correctly_checks_boundardies() {
         for index in 0usize..=7usize {
             assert!(Rank::try_from(index).is_ok());
         }
@@ -231,6 +351,32 @@ mod tests {
             assert!(Rank::try_from(index).is_err());
         }
     }
+
+    #[test]
+    fn ranks_try_from_char_converts_correctly() {
+        let valid = [
+            ('1', Rank::R1), ('2', Rank::R2), ('3', Rank::R3), ('4', Rank::R4),
+            ('5', Rank::R5), ('6', Rank::R6), ('7', Rank::R7), ('8', Rank::R8)
+        ];
+        
+        for (ch, expected_rank) in valid {
+            let converted = Rank::try_from(ch).unwrap();
+            assert_eq!(expected_rank, converted);
+        }
+
+        for ch in ['0', '9'] {
+            let converted = Rank::try_from(ch);
+            assert!(converted.is_err());
+            assert_eq!(converted.unwrap_err(), "character cannot represent a rank");
+        }
+
+        for ch in 'a'..='z' {
+            let converted = Rank::try_from(ch);
+            assert!(converted.is_err());
+            assert_eq!(converted.unwrap_err(), "character cannot represent a rank");
+        }
+    }
+
 
     #[test]
     fn square_index_calculated_correctly() {
@@ -259,6 +405,29 @@ mod tests {
                 let pair = square.as_indexes();
                 assert_eq!(expected_pair, pair);
             }
+        }
+    }
+
+    #[test]
+    fn square_try_from_str_converts_correctly() {
+        let mut counter = 0;
+
+        for rank_char in '1'..='8' {
+            for file_char in 'a'..='h' {
+                let combined = format!("{}{}", file_char, rank_char);
+                let converted = Square::try_from(combined.as_ref());
+                // we are going left-to-right and bottom-to-top when creating 
+                // these squares using try_from, so its expected that each next square
+                // has index 1 bigger than the previous square
+                assert_eq!(converted.unwrap().get_index(), counter);
+                counter += 1;
+            }
+        }
+
+        for incorrect in ["a", "b", "asdf", "fasdfwesadf", "wwawdfadsf"] {
+            let converted = Square::try_from(incorrect);
+            assert!(converted.is_err());
+            assert_eq!(converted.unwrap_err(), "must contain exactly 2 characters");
         }
     }
 }
