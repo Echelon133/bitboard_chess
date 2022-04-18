@@ -36,7 +36,7 @@ impl TryFrom<usize> for File {
 
     /// Converts an index between 0 and 7 into a [`File`].
     /// This index is consistent with the value that is returned 
-    /// when index() is called a specific file.
+    /// when index() is called on a specific file.
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
             Err("cannot convert a value this big to a file")        
@@ -103,7 +103,7 @@ impl TryFrom<usize> for Rank {
     
     /// Converts an index between 0 and 7 into a [`Rank`].
     /// This index is consistent with the value that is returned 
-    /// when index() is called a specific rank.
+    /// when index() is called on a specific rank.
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
             Err("cannot convert a value this big to a rank")        
