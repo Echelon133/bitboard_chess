@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::BitOr};
 
 use crate::square;
 
@@ -23,7 +23,7 @@ use crate::square;
 /// and then we check whether the least significant bit after that shift is
 /// equal to 1.
 ///
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Bitboard {
     bits: u64,
 }
@@ -62,6 +62,20 @@ impl Bitboard {
     /// Returns an iterator which gives out [`square::Square`] set by this bitboard.
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
+    }
+}
+
+impl From<u64> for Bitboard {
+    fn from(v: u64) -> Self {
+        Self { bits: v }
+    }
+}
+
+impl BitOr<Self> for Bitboard {
+    type Output = Bitboard;
+    /// Returns bitwise OR of the bits of two bitboards.
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Bitboard::from(self.get_bits() | rhs.get_bits())
     }
 }
 
@@ -140,6 +154,8 @@ impl Default for Bitboard {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::bitboard::*;
     use crate::square;
 
@@ -324,5 +340,56 @@ mod tests {
 
         let files_debug = format!("{:?}", bitboard);
         assert_eq!(expected_files, files_debug);
+    }
+
+    #[test]
+    fn bitboard_bitor_works() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let mut black_squares = Bitboard::default();
+        // set every black square (so all squares from 0..=63 which have an odd index)
+        for index in 0..=63 {
+            if index % 2 != 0 {
+                let square = square::Square::from(index);
+                black_squares.set(square);
+            }
+        }
+
+        let bitwise_or_result = white_squares | black_squares;
+
+        // expect all 64 unique squares to be set to 1
+        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        assert_eq!(set.len(), 64);
+        assert_eq!(bitwise_or_result.get_bits(), u64::MAX);
+    }
+
+    #[test]
+    fn bitboard_bitor_is_not_xor() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let white_squares_clone = white_squares.clone();
+
+        let bitwise_or_result = white_squares | white_squares_clone;
+
+        // expect 32 unique squares to be set to 1
+        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        assert_eq!(set.len(), 32);
+
+        // a result of bitwise OR of the value with itself should be the value itself
+        assert_eq!(white_squares, bitwise_or_result);
     }
 }
