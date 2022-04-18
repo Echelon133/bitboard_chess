@@ -1,24 +1,43 @@
 use std::fmt::Debug;
 
-static FILES : [File; 8] = [
-    File::A, File::B, File::C, File::D, 
-    File::E, File::F, File::G, File::H
+static FILES: [File; 8] = [
+    File::A,
+    File::B,
+    File::C,
+    File::D,
+    File::E,
+    File::F,
+    File::G,
+    File::H,
 ];
 
-static RANKS : [Rank; 8] = [
-    Rank::R1, Rank::R2, Rank::R3, Rank::R4,
-    Rank::R5, Rank::R6, Rank::R7, Rank::R8,
+static RANKS: [Rank; 8] = [
+    Rank::R1,
+    Rank::R2,
+    Rank::R3,
+    Rank::R4,
+    Rank::R5,
+    Rank::R6,
+    Rank::R7,
+    Rank::R8,
 ];
 
 /// Represents a file on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum File {
-    A, B, C, D, E, F, G, H
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
 }
 
 impl File {
     /// Returns the index of the file.
-    /// Indexes start from A, so the index of 
+    /// Indexes start from A, so the index of
     /// A is 0, then B is 1, and so on.
     pub fn index(&self) -> u8 {
         *self as u8
@@ -35,11 +54,11 @@ impl TryFrom<usize> for File {
     type Error = &'static str;
 
     /// Converts an index between 0 and 7 into a [`File`].
-    /// This index is consistent with the value that is returned 
+    /// This index is consistent with the value that is returned
     /// when index() is called on a specific file.
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
-            Err("cannot convert a value this big to a file")        
+            Err("cannot convert a value this big to a file")
         } else {
             Ok(FILES[value])
         }
@@ -48,9 +67,9 @@ impl TryFrom<usize> for File {
 
 impl TryFrom<char> for File {
     type Error = &'static str;
-    
+
     /// Converts a single numeric character from 'a'..='h' range
-    /// (lowercase or uppercase) into a [`File`] that represents that character. 
+    /// (lowercase or uppercase) into a [`File`] that represents that character.
     ///
     /// This means that:
     /// - 'a' gives File::A,
@@ -58,7 +77,7 @@ impl TryFrom<char> for File {
     /// - 'b' gives File::B,
     /// - 'B' gives File::B,
     /// - etc.
-    /// 
+    ///
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let file = match value.to_ascii_lowercase() {
             'a' => File::A,
@@ -80,12 +99,19 @@ impl TryFrom<char> for File {
 /// Represents a rank on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Rank {
-    R1, R2, R3, R4, R5, R6, R7, R8
+    R1,
+    R2,
+    R3,
+    R4,
+    R5,
+    R6,
+    R7,
+    R8,
 }
 
 impl Rank {
     /// Returns the index of the rank.
-    /// Indexes start from the first rank, so the 
+    /// Indexes start from the first rank, so the
     /// index of R1 is 0, then R2 is 1, and so on.
     pub fn index(&self) -> u8 {
         *self as u8
@@ -100,13 +126,13 @@ impl Rank {
 
 impl TryFrom<usize> for Rank {
     type Error = &'static str;
-    
+
     /// Converts an index between 0 and 7 into a [`Rank`].
-    /// This index is consistent with the value that is returned 
+    /// This index is consistent with the value that is returned
     /// when index() is called on a specific rank.
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
-            Err("cannot convert a value this big to a rank")        
+            Err("cannot convert a value this big to a rank")
         } else {
             Ok(RANKS[value])
         }
@@ -121,7 +147,7 @@ impl TryFrom<char> for Rank {
     /// - '1' gives Rank::R1
     /// - '2' gives Rank::R2
     /// - etc.
-    /// 
+    ///
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let rank = match value {
             '1' => Rank::R1,
@@ -140,13 +166,13 @@ impl TryFrom<char> for Rank {
     }
 }
 
-/// Represents a single square on the board with precise coordinates specified 
+/// Represents a single square on the board with precise coordinates specified
 /// by the Square's [`File`] and [`Rank`].
 ///
 /// Square indexes should grow from 0 to 63.
 /// Indexes of files grow from left to right, and indexes of ranks grow
 /// from bottom to top. This means that:
-/// 
+///
 /// - 'a1' has index 0
 /// - 'b1' has index 1
 /// - 'a8' has index 56
@@ -154,7 +180,7 @@ impl TryFrom<char> for Rank {
 ///
 /// Index of the square = (rank_index * 8) + file_index
 ///
-/// Bottom-left corner of the board is represented by a following pair 
+/// Bottom-left corner of the board is represented by a following pair
 /// of indexes: (0, 0). The top-right corner of the board is represented by
 /// a (7, 7) pair.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -163,7 +189,6 @@ pub struct Square {
 }
 
 impl Square {
-
     /// Creates an immutable [`Square`] that represents given [`Rank`] and [`File`]
     /// on the board.
     pub fn new(rank: Rank, file: File) -> Self {
@@ -172,15 +197,15 @@ impl Square {
         }
     }
 
-    /// Recalculates the index of the [`Rank`] of the square. Square only holds its 
+    /// Recalculates the index of the [`Rank`] of the square. Square only holds its
     /// index on the board. Indexes of rank and file have to be calculated from
     /// the square index. Returned index is guaranteed to be within the range 0..=7.
     #[inline(always)]
     fn rank_index(&self) -> usize {
         (self.square_index / 8u8) as usize
     }
-    
-    /// Recalculates the index of the [`File`] of the square. Square only holds its 
+
+    /// Recalculates the index of the [`File`] of the square. Square only holds its
     /// index on the board. Indexes of rank and file have to be calculated from
     /// the square index. Returned index is guaranteed to be within the range 0..=7.
     #[inline(always)]
@@ -253,7 +278,12 @@ impl TryFrom<&str> for Square {
 
 impl Debug for Square {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.get_file().as_char(), self.get_rank().as_char())   
+        write!(
+            f,
+            "{}{}",
+            self.get_file().as_char(),
+            self.get_rank().as_char()
+        )
     }
 }
 
@@ -264,8 +294,14 @@ mod tests {
     #[test]
     fn files_have_correct_indexes() {
         let expected_order = [
-            File::A, File::B, File::C, File::D, 
-            File::E, File::F, File::G, File::H
+            File::A,
+            File::B,
+            File::C,
+            File::D,
+            File::E,
+            File::F,
+            File::G,
+            File::H,
         ];
 
         for (expected_index, file) in expected_order.into_iter().enumerate() {
@@ -296,10 +332,16 @@ mod tests {
     #[test]
     fn files_try_from_char_converts_correctly() {
         let valid = [
-            ('a', File::A), ('b', File::B), ('c', File::C), ('d', File::D),
-            ('e', File::E), ('f', File::F), ('g', File::G), ('h', File::H)
+            ('a', File::A),
+            ('b', File::B),
+            ('c', File::C),
+            ('d', File::D),
+            ('e', File::E),
+            ('f', File::F),
+            ('g', File::G),
+            ('h', File::H),
         ];
-        
+
         // converted works both for uppercase and lowercase
         for (ch, expected_file) in valid {
             let converted_lowercase = File::try_from(ch).unwrap();
@@ -324,8 +366,14 @@ mod tests {
     #[test]
     fn ranks_have_correct_indexes() {
         let expected_order = [
-            Rank::R1, Rank::R2, Rank::R3, Rank::R4,
-            Rank::R5, Rank::R6, Rank::R7, Rank::R8,
+            Rank::R1,
+            Rank::R2,
+            Rank::R3,
+            Rank::R4,
+            Rank::R5,
+            Rank::R6,
+            Rank::R7,
+            Rank::R8,
         ];
         for (expected_index, rank) in expected_order.into_iter().enumerate() {
             assert_eq!(expected_index, rank.index() as usize);
@@ -355,10 +403,16 @@ mod tests {
     #[test]
     fn ranks_try_from_char_converts_correctly() {
         let valid = [
-            ('1', Rank::R1), ('2', Rank::R2), ('3', Rank::R3), ('4', Rank::R4),
-            ('5', Rank::R5), ('6', Rank::R6), ('7', Rank::R7), ('8', Rank::R8)
+            ('1', Rank::R1),
+            ('2', Rank::R2),
+            ('3', Rank::R3),
+            ('4', Rank::R4),
+            ('5', Rank::R5),
+            ('6', Rank::R6),
+            ('7', Rank::R7),
+            ('8', Rank::R8),
         ];
-        
+
         for (ch, expected_rank) in valid {
             let converted = Rank::try_from(ch).unwrap();
             assert_eq!(expected_rank, converted);
@@ -377,7 +431,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn square_index_calculated_correctly() {
         let mut counter = 0;
@@ -385,7 +438,7 @@ mod tests {
         for rank in RANKS.iter() {
             for file in FILES.iter() {
                 let square = Square::new(*rank, *file);
-                // indexes grow left-to-right and bottom-to-top 
+                // indexes grow left-to-right and bottom-to-top
                 // so we are iterating in a way in which indexes should
                 // grow by one
                 assert_eq!(counter, square.get_index());
@@ -416,7 +469,7 @@ mod tests {
             for file_char in 'a'..='h' {
                 let combined = format!("{}{}", file_char, rank_char);
                 let converted = Square::try_from(combined.as_ref());
-                // we are going left-to-right and bottom-to-top when creating 
+                // we are going left-to-right and bottom-to-top when creating
                 // these squares using try_from, so its expected that each next square
                 // has index 1 bigger than the previous square
                 assert_eq!(converted.unwrap().get_index(), counter);
