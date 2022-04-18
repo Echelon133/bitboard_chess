@@ -17,6 +17,28 @@ impl Kind {
     }
 }
 
+impl TryFrom<usize> for Kind {
+    type Error = &'static str;
+
+    /// Converts an index into a [`Kind`]. Any value bigger than 5
+    /// cannot be converted and results in an error.
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        let val = match value {
+            0 => Kind::Pawn,
+            1 => Kind::Knight,
+            2 => Kind::Bishop,
+            3 => Kind::Rook,
+            4 => Kind::Queen,
+            5 => Kind::King,
+            _ => {
+                return Err("this value does not represent any kind");
+            }
+        };
+
+        Ok(val)
+    }
+}
+
 /// Represents colors of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Color {
