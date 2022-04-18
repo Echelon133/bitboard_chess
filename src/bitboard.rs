@@ -158,12 +158,36 @@ mod tests {
         assert!(bitboard.is_set(s1));
         assert!(bitboard.is_set(s2));
         assert!(bitboard.is_set(s3));
+
+        assert_eq!(bitboard.count_set(), 3);
+    }
+
+    #[test]
+    fn bitboard_clearing_bits_works() {
+        let mut bitboard = Bitboard::default();
+
+        let s1 = square::Square::try_from("b3").unwrap();
+        let s2 = square::Square::try_from("g5").unwrap();
+        let s3 = square::Square::try_from("a8").unwrap();
+
+        bitboard.set(s1);
+        bitboard.set(s2);
+        bitboard.set(s3);
+
+        assert!(bitboard.is_set(s1));
+        assert!(bitboard.is_set(s2));
+        assert!(bitboard.is_set(s3));
+
+        bitboard.clear(s1);
+        bitboard.clear(s2);
+        bitboard.clear(s3);
+
+        assert_eq!(bitboard.get_bits(), 0);
     }
 
     #[test]
     fn bitboard_iterator_over_empty_works() {
         let bitboard = Bitboard::default();
-
         assert_eq!(bitboard.iter().next(), None);
     }
 
