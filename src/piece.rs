@@ -11,6 +11,12 @@ pub enum Kind {
     King,
 }
 
+impl Kind {
+    pub fn index(&self) -> usize {
+        *self as usize
+    }
+}
+
 /// Represents colors of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Color {
@@ -106,6 +112,18 @@ impl TryFrom<char> for Piece {
 mod tests {
     use crate::piece::*;
     use std::convert::TryFrom;
+
+    #[test]
+    fn kind_index_returns_correct_values() {
+        let expected_values = [
+            (0, Kind::Pawn), (1, Kind::Knight), (2, Kind::Bishop),
+            (3, Kind::Rook), (4, Kind::Queen), (5, Kind::King),
+        ];
+
+        for (expected_index, kind) in expected_values {
+            assert_eq!(expected_index, kind.index());
+        }
+    }
 
     #[test]
     fn piece_try_from_works_for_expected_values() {
