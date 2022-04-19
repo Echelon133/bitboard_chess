@@ -192,6 +192,15 @@ mod tests {
     }
 
     #[test]
+    fn board_is_square_empty_correct_when_square_taken() {
+        let mut board = Board::new();
+        let square = square::Square::try_from("a1").unwrap();
+        let rook = piece::Piece::try_from('R').unwrap();
+        board.place_piece(square, &rook);
+        assert!(!board.is_square_empty(square));
+    }
+
+    #[test]
     fn board_get_piece_none_for_all_when_no_pieces() {
         let board = Board::new();
 
@@ -201,7 +210,33 @@ mod tests {
             assert!(piece.is_none());
         }
     }
-    
+
+    #[test]
+    fn board_get_piece_correctly_reads_pieces_for_both_colors() {
+        let mut board = Board::new();
+
+        let white_square = square::Square::try_from("c5").unwrap();
+        let white_pieces = ['P', 'B', 'N', 'R', 'Q', 'K'];
+        for piece_symbol in white_pieces {
+            let piece = piece::Piece::try_from(piece_symbol).unwrap();
+            board.place_piece(white_square, &piece);
+            let received_piece = board.get_piece(white_square);
+            assert_eq!(received_piece.unwrap(), piece);
+        }
+
+        let black_square = square::Square::try_from("g5").unwrap();
+        let black_pieces = white_pieces.clone().map(|p| p.to_ascii_lowercase());
+        for piece_symbol in black_pieces {
+            let piece = piece::Piece::try_from(piece_symbol).unwrap();
+            board.place_piece(black_square, &piece);
+            let received_piece = board.get_piece(black_square);
+            assert_eq!(received_piece.unwrap(), piece);
+        }
+
+        assert_eq!(board.count_pieces(piece::Color::White), 1);
+        assert_eq!(board.count_pieces(piece::Color::Black), 1);
+    }
+
     #[test]
     fn board_remove_piece_none_for_all_when_no_pieces() {
         let mut board = Board::new();
@@ -211,6 +246,25 @@ mod tests {
             let piece = board.remove_piece(square);
             assert!(piece.is_none());
         }
+    }
+
+    #[test]
+    fn board_remove_piece_works_when_square_not_empty() {
+        let mut board = Board::new();
+
+        let square = square::Square::try_from("a1").unwrap();
+        
+        // place a white rook on "a1"
+        let rook_white = piece::Piece::try_from('R').unwrap();
+        board.place_piece(square, &rook_white);
+
+        // remove piece that's on "a1"
+        let removed_piece = board.remove_piece(square);
+        assert_eq!(removed_piece.unwrap(), rook_white);
+
+        // neither color has any pieces
+        assert_eq!(board.count_pieces(piece::Color::White), 0);
+        assert_eq!(board.count_pieces(piece::Color::Black), 0);
     }
 
     #[test]
@@ -251,42 +305,5 @@ mod tests {
         // only black player has pieces on the board
         assert_eq!(board.count_pieces(piece::Color::White), 0);
         assert_eq!(board.count_pieces(piece::Color::Black), 1);
-    }
-
-    #[test]
-    fn board_get_piece_works_when_square_not_empty() {
-        let mut board = Board::new();
-
-        let square = square::Square::try_from("a1").unwrap();
-
-        // place a white queen on "a1"
-        let queen = piece::Piece::try_from('Q').unwrap();
-        let captured_piece = board.place_piece(square, &queen);
-
-        // the a1 square was empty before, so no pieces should have been captured
-        assert!(captured_piece.is_none());
-        assert_eq!(board.get_piece(square).unwrap(), queen);
-    }
-
-    #[test]
-    fn board_remove_piece_works_when_square_not_empty() {
-        let mut board = Board::new();
-
-        let square = square::Square::try_from("a1").unwrap();
-        
-        // place a white rook on "a1"
-        let rook_white = piece::Piece::try_from('R').unwrap();
-        board.place_piece(square, &rook_white);
-
-        // remove piece that's on "a1"
-        let removed_piece = board.remove_piece(square);
-
-        // the a1 square was empty before, so no pieces should have been captured
-        assert!(removed_piece.is_some());
-        assert_eq!(removed_piece.unwrap(), rook_white);
-
-        // neither color has any pieces
-        assert_eq!(board.count_pieces(piece::Color::White), 0);
-        assert_eq!(board.count_pieces(piece::Color::Black), 0);
     }
 }
