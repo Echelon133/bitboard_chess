@@ -50,6 +50,23 @@ impl TryFrom<usize> for Kind {
     }
 }
 
+impl TryFrom<char> for Kind {
+    type Error = &'static str;
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        let kind = match value.to_ascii_lowercase() {
+            'p' => Kind::Pawn,
+            'r' => Kind::Rook,
+            'n' => Kind::Knight,
+            'b' => Kind::Bishop,
+            'q' => Kind::Queen,
+            'k' => Kind::King,
+            _ => return Err("char does not represent a valid piece"),
+        };
+        Ok(kind)
+    }
+}
+
 /// Represents colors of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Color {
@@ -118,15 +135,7 @@ impl TryFrom<char> for Piece {
                 true => Color::White,
                 false => Color::Black,
             };
-            let kind = match value.to_ascii_lowercase() {
-                'p' => Kind::Pawn,
-                'r' => Kind::Rook,
-                'n' => Kind::Knight,
-                'b' => Kind::Bishop,
-                'q' => Kind::Queen,
-                'k' => Kind::King,
-                _ => return Err("char does not represent a valid piece"),
-            };
+            let kind = Kind::try_from(value)?;
             Ok(Piece::new(kind, color))
         }
     }
