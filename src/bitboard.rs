@@ -1,8 +1,8 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::BitOr};
 
 use crate::square;
 
-/// Represents the entire chessboard in 8 bytes, where each square is 
+/// Represents the entire chessboard in 8 bytes, where each square is
 /// represented by a single bit.
 ///
 /// The ordering of bits is important, and in this implementation:
@@ -21,16 +21,14 @@ use crate::square;
 /// we get the index of that square, which is 1. This means that to get the bit
 /// that represents that square we shift bitboard's bits to the right once
 /// and then we check whether the least significant bit after that shift is
-/// equal to 1. 
+/// equal to 1.
 ///
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Bitboard {
     bits: u64,
 }
 
 impl Bitboard {
-    
-
     /// Returns a [`bool`] which informs if the bit of the given
     /// square is set.
     pub fn is_set(&self, square: square::Square) -> bool {
@@ -47,9 +45,9 @@ impl Bitboard {
         self.bits &= !(0b1 << square.get_index())
     }
 
-    /// Counts how many bits are set in the bitboard. 
+    /// Counts how many bits are set in the bitboard.
     ///
-    /// This can be useful for different things depending on the context. 
+    /// This can be useful for different things depending on the context.
     /// For example, if the bitboard represents squares taken by pieces of certain color,
     /// this method returns the number of all pieces available to a certain player.
     pub fn count_set(&self) -> u8 {
@@ -67,14 +65,28 @@ impl Bitboard {
     }
 }
 
+impl From<u64> for Bitboard {
+    fn from(v: u64) -> Self {
+        Self { bits: v }
+    }
+}
+
+impl BitOr<Self> for Bitboard {
+    type Output = Bitboard;
+    /// Returns bitwise OR of the bits of two bitboards.
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Bitboard::from(self.get_bits() | rhs.get_bits())
+    }
+}
+
 impl Debug for Bitboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for rank in (1..=8).rev() {
             // every rank consists of 8 bits, so we need to get to those that
-            // represent the rank from this loop 
-            let rank_bits = ((self.bits >> ((rank-1) * 8)) & 0b11111111) as u8;
+            // represent the rank from this loop
+            let rank_bits = ((self.bits >> ((rank - 1) * 8)) & 0b11111111) as u8;
             // since the least significant bit is always righmost in the number
-            // but represents the leftmost square, 
+            // but represents the leftmost square,
             // reverse the bits before displaying
             let rank_bits = rank_bits.reverse_bits();
             write!(f, "{} {:08b}\n", rank, rank_bits)?;
@@ -93,7 +105,6 @@ pub struct SquareIter {
 }
 
 impl SquareIter {
-
     /// Creates an iterator over the squares set on the bitboard.
     pub fn new(bboard: &Bitboard) -> Self {
         Self {
@@ -125,7 +136,7 @@ impl Iterator for SquareIter {
                     let square = square::Square::from(self.shift);
                     self.shift += 1;
                     self.size -= 1;
-                    break Some(square)
+                    break Some(square);
                 } else {
                     self.shift += 1;
                 }
@@ -135,15 +146,16 @@ impl Iterator for SquareIter {
 }
 
 impl Default for Bitboard {
-
     /// Returns a default bitboard with all bits set to 0.
     fn default() -> Self {
-        Self { bits: 0u64 }   
+        Self { bits: 0u64 }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::bitboard::*;
     use crate::square;
 
@@ -225,13 +237,12 @@ mod tests {
 
         let iterator = bitboard.iter();
 
-        let collected = 
-            iterator.collect::<std::collections::HashSet<square::Square>>();
+        let collected = iterator.collect::<std::collections::HashSet<square::Square>>();
 
         assert!(collected.contains(&square::Square::try_from("a1").unwrap()));
         assert!(collected.contains(&square::Square::try_from("a8").unwrap()));
         assert!(collected.contains(&square::Square::try_from("h1").unwrap()));
-        assert!(collected.contains(&square::Square::try_from("h8").unwrap()));        
+        assert!(collected.contains(&square::Square::try_from("h8").unwrap()));
     }
 
     #[test]
@@ -266,7 +277,7 @@ mod tests {
         for corner in corners {
             bitboard.set(square::Square::try_from(corner).unwrap());
         }
-        
+
         let expected_corners = r#"8 10000001
 7 00000000
 6 00000000
@@ -284,7 +295,7 @@ mod tests {
     #[test]
     fn bitboard_debug_is_correct_for_ranks() {
         let mut bitboard = Bitboard::default();
-        
+
         for file in 'a'..='h' {
             for rank in ['1', '3', '5', '7'] {
                 let square = format!("{}{}", file, rank);
@@ -309,7 +320,7 @@ mod tests {
     #[test]
     fn bitboard_debug_is_correct_for_files() {
         let mut bitboard = Bitboard::default();
-        
+
         for file in ['a', 'c', 'e', 'g'] {
             for rank in '1'..='8' {
                 let square = format!("{}{}", file, rank);
@@ -329,5 +340,56 @@ mod tests {
 
         let files_debug = format!("{:?}", bitboard);
         assert_eq!(expected_files, files_debug);
+    }
+
+    #[test]
+    fn bitboard_bitor_works() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let mut black_squares = Bitboard::default();
+        // set every black square (so all squares from 0..=63 which have an odd index)
+        for index in 0..=63 {
+            if index % 2 != 0 {
+                let square = square::Square::from(index);
+                black_squares.set(square);
+            }
+        }
+
+        let bitwise_or_result = white_squares | black_squares;
+
+        // expect all 64 unique squares to be set to 1
+        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        assert_eq!(set.len(), 64);
+        assert_eq!(bitwise_or_result.get_bits(), u64::MAX);
+    }
+
+    #[test]
+    fn bitboard_bitor_is_not_xor() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let white_squares_clone = white_squares.clone();
+
+        let bitwise_or_result = white_squares | white_squares_clone;
+
+        // expect 32 unique squares to be set to 1
+        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        assert_eq!(set.len(), 32);
+
+        // a result of bitwise OR of the value with itself should be the value itself
+        assert_eq!(white_squares, bitwise_or_result);
     }
 }

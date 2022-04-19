@@ -11,6 +11,34 @@ pub enum Kind {
     King,
 }
 
+impl Kind {
+    pub fn index(&self) -> usize {
+        *self as usize
+    }
+}
+
+impl TryFrom<usize> for Kind {
+    type Error = &'static str;
+
+    /// Converts an index into a [`Kind`]. Any value bigger than 5
+    /// cannot be converted and results in an error.
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        let val = match value {
+            0 => Kind::Pawn,
+            1 => Kind::Knight,
+            2 => Kind::Bishop,
+            3 => Kind::Rook,
+            4 => Kind::Queen,
+            5 => Kind::King,
+            _ => {
+                return Err("this value does not represent any kind");
+            }
+        };
+
+        Ok(val)
+    }
+}
+
 /// Represents colors of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Color {
@@ -26,7 +54,6 @@ pub struct Piece {
 }
 
 impl Piece {
-
     /// Creates an immutable piece object from given [`Kind`] and [`Color`] arguments.
     pub fn new(kind: Kind, color: Color) -> Self {
         Self { kind, color }
@@ -46,12 +73,12 @@ impl Piece {
 impl Display for Piece {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut ch = match self.get_kind() {
-            Kind::Pawn   => 'p',
-            Kind::Rook   => 'r',
+            Kind::Pawn => 'p',
+            Kind::Rook => 'r',
             Kind::Knight => 'n',
             Kind::Bishop => 'b',
-            Kind::Queen  => 'q',
-            Kind::King   => 'k',
+            Kind::Queen => 'q',
+            Kind::King => 'k',
         };
 
         if self.get_color() == Color::White {
@@ -95,17 +122,33 @@ impl TryFrom<char> for Piece {
                 'b' => Kind::Bishop,
                 'q' => Kind::Queen,
                 'k' => Kind::King,
-                _ => return Err("char does not represent a valid piece")
+                _ => return Err("char does not represent a valid piece"),
             };
             Ok(Piece::new(kind, color))
         }
     }
 }
 
-#[cfg(test)] 
+#[cfg(test)]
 mod tests {
     use crate::piece::*;
     use std::convert::TryFrom;
+
+    #[test]
+    fn kind_index_returns_correct_values() {
+        let expected_values = [
+            (0, Kind::Pawn),
+            (1, Kind::Knight),
+            (2, Kind::Bishop),
+            (3, Kind::Rook),
+            (4, Kind::Queen),
+            (5, Kind::King),
+        ];
+
+        for (expected_index, kind) in expected_values {
+            assert_eq!(expected_index, kind.index());
+        }
+    }
 
     #[test]
     fn piece_try_from_works_for_expected_values() {
@@ -115,10 +158,11 @@ mod tests {
             ('n', Kind::Knight),
             ('b', Kind::Bishop),
             ('q', Kind::Queen),
-            ('k', Kind::King)
+            ('k', Kind::King),
         ];
         let valid_white_chars = valid_black_chars
-            .clone().map(|(ch, kind)| (ch.to_ascii_uppercase(), kind));
+            .clone()
+            .map(|(ch, kind)| (ch.to_ascii_uppercase(), kind));
 
         // check valid black chars
         for (ch, kind) in valid_black_chars {
@@ -128,7 +172,7 @@ mod tests {
             // check the Display implementation
             assert_eq!(ch.to_string(), piece.to_string());
         }
-        
+
         // check valid white chars
         for (ch, kind) in valid_white_chars {
             let expected_piece = Piece::new(kind, Color::White);
@@ -141,10 +185,7 @@ mod tests {
 
     #[test]
     fn piece_try_from_fails_for_incorrect_ascii_values() {
-        let valid_chars = [
-            'p', 'r', 'n', 'b', 'q', 'k',
-            'P', 'R', 'N', 'B', 'Q', 'K',
-        ];
+        let valid_chars = ['p', 'r', 'n', 'b', 'q', 'k', 'P', 'R', 'N', 'B', 'Q', 'K'];
 
         for ch in 'a'..='z' {
             if !valid_chars.contains(&ch) {
@@ -160,7 +201,6 @@ mod tests {
                 assert!(piece.is_err());
                 assert_eq!(piece.unwrap_err(), "char does not represent a valid piece");
             }
-
         }
     }
 
@@ -171,7 +211,10 @@ mod tests {
         for ch in nonascii {
             let piece = Piece::try_from(ch);
             assert!(piece.is_err());
-            assert_eq!(piece.unwrap_err(), "non-ascii characters cannot represent pieces");
+            assert_eq!(
+                piece.unwrap_err(),
+                "non-ascii characters cannot represent pieces"
+            );
         }
     }
 }
