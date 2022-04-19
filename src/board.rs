@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::bitboard;
 use crate::piece;
 use crate::square;
@@ -168,6 +170,32 @@ impl Board {
     }
 }
 
+impl Debug for Board {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // iterate top-to-bottom
+        for rank_i in (0..=7).rev() {
+            write!(f, "{} ", rank_i + 1)?;
+            // guaranteed to not panic because 0..=7 is in range
+            let rank = square::Rank::try_from(rank_i).unwrap();
+            // iterate left-to-right
+            for file_i in 0..=7 {
+                // guaranteed to not panic because 0..=7 is in range
+                let file = square::File::try_from(file_i).unwrap();
+
+                let square = square::Square::new(rank, file);
+                let piece_symbol = match self.get_piece(square) {
+                    Some(piece) => piece.to_string(),
+                    None => " ".to_string(),
+                };
+                write!(f, "[{}]", piece_symbol)?;
+            }
+            write!(f, "\n")?;
+        }
+        write!(f, "   A  B  C  D  E  F  G  H\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::board::*;
@@ -305,5 +333,62 @@ mod tests {
         // only black player has pieces on the board
         assert_eq!(board.count_pieces(piece::Color::White), 0);
         assert_eq!(board.count_pieces(piece::Color::Black), 1);
+    }
+
+    #[test]
+    fn board_try_from_str_empty_board() {
+        let board = Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        let expected_board = r#"8 [ ][ ][ ][ ][ ][ ][ ][ ]
+7 [ ][ ][ ][ ][ ][ ][ ][ ]
+6 [ ][ ][ ][ ][ ][ ][ ][ ]
+5 [ ][ ][ ][ ][ ][ ][ ][ ]
+4 [ ][ ][ ][ ][ ][ ][ ][ ]
+3 [ ][ ][ ][ ][ ][ ][ ][ ]
+2 [ ][ ][ ][ ][ ][ ][ ][ ]
+1 [ ][ ][ ][ ][ ][ ][ ][ ]
+   A  B  C  D  E  F  G  H
+"#;
+
+        let actual_board = format!("{:?}", board);
+        assert_eq!(expected_board, actual_board);
+
+        assert_eq!(board.count_pieces(piece::Color::White), 0);
+        assert_eq!(board.count_pieces(piece::Color::Black), 0);
+    }
+
+    #[test]
+    fn board_try_from_str_fails_when_fen_ranks_num_incorrect() {
+        let incorrect = [
+            "8/", "///////", "8/8/8/8/8/8/8", "8/8/8/8/8/8/8/8/8"
+        ];
+
+        for i_fen in incorrect {
+            let board = Board::try_from(i_fen);
+            assert!(board.is_err());
+            assert_eq!(board.unwrap_err(), "invalid number of ranks describing the board");
+        }
+    }
+
+    #[test]
+    fn board_try_from_str_corners_taken() {
+        let board = Board::try_from("q6n/8/8/8/8/8/8/B6R").unwrap();
+         
+        let expected_board = r#"8 [q][ ][ ][ ][ ][ ][ ][n]
+7 [ ][ ][ ][ ][ ][ ][ ][ ]
+6 [ ][ ][ ][ ][ ][ ][ ][ ]
+5 [ ][ ][ ][ ][ ][ ][ ][ ]
+4 [ ][ ][ ][ ][ ][ ][ ][ ]
+3 [ ][ ][ ][ ][ ][ ][ ][ ]
+2 [ ][ ][ ][ ][ ][ ][ ][ ]
+1 [B][ ][ ][ ][ ][ ][ ][R]
+   A  B  C  D  E  F  G  H
+"#;
+
+        let actual_board = format!("{:?}", board);
+        assert_eq!(expected_board, actual_board);
+       
+        assert_eq!(board.count_pieces(piece::Color::White), 2);
+        assert_eq!(board.count_pieces(piece::Color::Black), 2);
     }
 }
