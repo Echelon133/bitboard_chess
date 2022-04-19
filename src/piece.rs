@@ -15,6 +15,17 @@ impl Kind {
     pub fn index(&self) -> usize {
         *self as usize
     }
+
+    pub fn as_char(&self) -> char {
+        match self {
+            Kind::Pawn => 'p',
+            Kind::Rook => 'r',
+            Kind::Knight => 'n',
+            Kind::Bishop => 'b',
+            Kind::Queen => 'q',
+            Kind::King => 'k',
+        }
+    }
 }
 
 impl TryFrom<usize> for Kind {
@@ -72,15 +83,7 @@ impl Piece {
 
 impl Display for Piece {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ch = match self.get_kind() {
-            Kind::Pawn => 'p',
-            Kind::Rook => 'r',
-            Kind::Knight => 'n',
-            Kind::Bishop => 'b',
-            Kind::Queen => 'q',
-            Kind::King => 'k',
-        };
-
+        let mut ch = self.get_kind().as_char();
         if self.get_color() == Color::White {
             ch = ch.to_ascii_uppercase();
         }
