@@ -245,6 +245,7 @@ impl TryFrom<&str> for Board {
 }
 
 impl Default for Board {
+    /// Returns a [`Board`] with the starting position already setup.
     fn default() -> Self {
         Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap()
     }
