@@ -170,6 +170,79 @@ impl Board {
     }
 }
 
+impl TryFrom<&str> for Board {
+    type Error = &'static str;
+
+    /// Parses a partial FEN string (only the part that describes where to put
+    /// pieces) and returns a [`Board`] that represents that piece setup.
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let ranks = value.split('/').collect::<Vec<&str>>();
+
+        if ranks.len() != 8 {
+            return Err("invalid number of ranks describing the board");
+        }
+
+        let mut board = Board::new();
+
+        for (rank_i, rank) in ranks.iter().enumerate() {
+            let mut file_i = 0;
+            let mut chars_in_rank = rank.chars();
+
+            let mut last_was_number = false;
+
+            while file_i < 8 {
+                let ch = match chars_in_rank.next() {
+                    Some(ch) => ch,
+                    None => { return Err("rank should describe 8 squares"); }
+                };
+
+                match piece::Piece::try_from(ch) {
+                    // it's possible to construct a piece from the given character
+                    Ok(piece) => {
+                        // unwrap right away because both file_i and rank_i are
+                        // in the correct range (0..=7)
+                        let file = square::File::try_from(file_i).unwrap();
+                        // our rank_i grows from 0..=7 but ranks on the board
+                        // go from 7 down to 0, so the rank_i needs to be transformed
+                        let rank = square::Rank::try_from(7 - rank_i).unwrap();
+                        let square = square::Square::new(rank, file);
+                        board.place_piece(square, &piece);
+                        last_was_number = false;
+                        file_i += 1;
+                    },
+                    // it's not possible to construct a piece from the given character
+                    Err(_) => {
+                        // check if the character was a digit that tells the parser
+                        // how many squares on the file should be skipped
+                        match ch.to_digit(10) {
+                            Some(skip_files) => {
+                                if last_was_number {
+                                    return Err("two numbers next to each other in a rank");
+                                }
+                                last_was_number = true;
+                                file_i += skip_files as usize;
+                                if file_i > 8 {
+                                    return Err("rank should describe 8 squares");
+                                }
+                            },
+                            None => {
+                                return Err("failed to parse because of invalid character");
+                            }
+                        }
+                    }
+                }
+                // if we already filled the last square and there are still symbols in
+                // this rank
+                if file_i == 8 && (chars_in_rank.next().is_some()) {
+                    return Err("rank should describe 8 squares");
+                }
+            }
+        }
+
+        Ok(board)
+    }
+}
+
 impl Debug for Board {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -360,13 +433,76 @@ mod tests {
     #[test]
     fn board_try_from_str_fails_when_fen_ranks_num_incorrect() {
         let incorrect = [
-            "8/", "///////", "8/8/8/8/8/8/8", "8/8/8/8/8/8/8/8/8"
+            "", "8/", "8/8/8/8/8/8/8", "8/8/8/8/8/8/8/8/8", "8/8/8/8/8/",
+            "q7/pppppppp/8/2b5/8/8/8/8/8/8",
         ];
 
         for i_fen in incorrect {
             let board = Board::try_from(i_fen);
             assert!(board.is_err());
             assert_eq!(board.unwrap_err(), "invalid number of ranks describing the board");
+        }
+    }
+
+    #[test]
+    fn board_try_from_str_fails_when_two_numbers_in_row() {
+        let incorrect = [
+            "62/8/8/8/8/8/8/8", "17/8/8/8/8/8/8/8", "8/8/8/8/8/8/8/53",
+        ];
+
+        for i_fen in incorrect {
+            let board = Board::try_from(i_fen);
+            assert!(board.is_err());
+            assert_eq!(board.unwrap_err(), "two numbers next to each other in a rank");
+        }
+    }
+
+    #[test]
+    fn board_try_from_str_fails_when_rank_too_short() {
+        let incorrect = [
+            "6p/8/8/8/8/8/8/8", "8/ppppp/8/8/8/8/8/8", "8/5pp/8/8/8/8/8/8"
+        ];
+
+        for i_fen in incorrect {
+            let board = Board::try_from(i_fen);
+            assert!(board.is_err());
+            assert_eq!(board.unwrap_err(), "rank should describe 8 squares");
+        }
+    }
+
+    #[test]
+    fn board_try_from_str_fails_when_rank_too_long() {
+        let incorrect = [
+            "9/8/8/8/8/8/8/8", "8/pppppppppp/8/8/8/8/8/8", "8/8/8/8/bbbbbbbbbbbbb/8/8/8"
+        ];
+
+        for i_fen in incorrect {
+            let board = Board::try_from(i_fen);
+            assert!(board.is_err());
+            assert_eq!(board.unwrap_err(), "rank should describe 8 squares");
+        }
+    }
+
+    #[test]
+    fn board_try_from_fails_when_invalid_char_encountered() {
+        let correct = ['p', 'r', 'n', 'b', 'q', 'k', 'P', 'R', 'N', 'B', 'Q', 'K'];
+
+        for ch in 'a'..='z' {
+            if !correct.contains(&ch) {
+                let fen = format!("{}7/8/8/8/8/8/8/8", ch);
+                let board = Board::try_from(fen.as_ref());
+                assert!(board.is_err());
+                assert_eq!(board.unwrap_err(), "failed to parse because of invalid character");
+            }
+        }
+
+        for ch in 'A'..='Z' {
+            if !correct.contains(&ch) {
+                let fen = format!("{}7/8/8/8/8/8/8/8", ch);
+                let board = Board::try_from(fen.as_ref());
+                assert!(board.is_err());
+                assert_eq!(board.unwrap_err(), "failed to parse because of invalid character");
+            }
         }
     }
 
