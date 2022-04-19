@@ -243,6 +243,12 @@ impl TryFrom<&str> for Board {
     }
 }
 
+impl Default for Board {
+    fn default() -> Self {
+        Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap()  
+    }
+}
+
 impl Debug for Board {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -526,5 +532,27 @@ mod tests {
        
         assert_eq!(board.count_pieces(piece::Color::White), 2);
         assert_eq!(board.count_pieces(piece::Color::Black), 2);
+    }
+
+    #[test]
+    fn board_default_returns_starting_position() {
+        let board = Board::default();
+        
+        let expected_board = r#"8 [r][n][b][q][k][b][n][r]
+7 [p][p][p][p][p][p][p][p]
+6 [ ][ ][ ][ ][ ][ ][ ][ ]
+5 [ ][ ][ ][ ][ ][ ][ ][ ]
+4 [ ][ ][ ][ ][ ][ ][ ][ ]
+3 [ ][ ][ ][ ][ ][ ][ ][ ]
+2 [P][P][P][P][P][P][P][P]
+1 [R][N][B][Q][K][B][N][R]
+   A  B  C  D  E  F  G  H
+"#;
+
+        let actual_board = format!("{:?}", board);
+        assert_eq!(expected_board, actual_board);
+       
+        assert_eq!(board.count_pieces(piece::Color::White), 16);
+        assert_eq!(board.count_pieces(piece::Color::Black), 16);
     }
 }
