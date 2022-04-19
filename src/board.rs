@@ -43,7 +43,6 @@ impl Board {
         square: square::Square,
         piece: &piece::Piece,
     ) -> Option<piece::Piece> {
-
         let removed_piece = self.remove_piece(square);
 
         let squares_taken = self.get_squares_taken_mut(piece.get_color());
@@ -71,7 +70,7 @@ impl Board {
                 kind_bitboard.clear(square);
 
                 Some(piece)
-            },
+            }
             None => None,
         }
     }
@@ -88,7 +87,7 @@ impl Board {
             let color = match self.white_taken.is_set(square) {
                 true => piece::Color::White,
                 false => piece::Color::Black,
-            }; 
+            };
 
             let piece_bitboards = match color {
                 piece::Color::White => &self.white_pieces,
@@ -158,7 +157,7 @@ impl Board {
             piece::Color::Black => &self.black_taken,
         }
     }
-    
+
     /// Returns a mutable reference to the bitboard that represents squares taken by
     /// the given color.
     #[inline(always)]
@@ -193,7 +192,9 @@ impl TryFrom<&str> for Board {
             while file_i < 8 {
                 let ch = match chars_in_rank.next() {
                     Some(ch) => ch,
-                    None => { return Err("rank should describe 8 squares"); }
+                    None => {
+                        return Err("rank should describe 8 squares");
+                    }
                 };
 
                 match piece::Piece::try_from(ch) {
@@ -209,7 +210,7 @@ impl TryFrom<&str> for Board {
                         board.place_piece(square, &piece);
                         last_was_number = false;
                         file_i += 1;
-                    },
+                    }
                     // it's not possible to construct a piece from the given character
                     Err(_) => {
                         // check if the character was a digit that tells the parser
@@ -224,7 +225,7 @@ impl TryFrom<&str> for Board {
                                 if file_i > 8 {
                                     return Err("rank should describe 8 squares");
                                 }
-                            },
+                            }
                             None => {
                                 return Err("failed to parse because of invalid character");
                             }
@@ -245,12 +246,11 @@ impl TryFrom<&str> for Board {
 
 impl Default for Board {
     fn default() -> Self {
-        Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap()  
+        Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap()
     }
 }
 
 impl Debug for Board {
-
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // iterate top-to-bottom
         for rank_i in (0..=7).rev() {
@@ -278,8 +278,8 @@ impl Debug for Board {
 #[cfg(test)]
 mod tests {
     use crate::board::*;
-    use crate::square;
     use crate::piece;
+    use crate::square;
 
     #[test]
     fn board_count_pieces_correct_when_no_pieces() {
@@ -360,7 +360,7 @@ mod tests {
         let mut board = Board::new();
 
         let square = square::Square::try_from("a1").unwrap();
-        
+
         // place a white rook on "a1"
         let rook_white = piece::Piece::try_from('R').unwrap();
         board.place_piece(square, &rook_white);
@@ -439,34 +439,44 @@ mod tests {
     #[test]
     fn board_try_from_str_fails_when_fen_ranks_num_incorrect() {
         let incorrect = [
-            "", "8/", "8/8/8/8/8/8/8", "8/8/8/8/8/8/8/8/8", "8/8/8/8/8/",
+            "",
+            "8/",
+            "8/8/8/8/8/8/8",
+            "8/8/8/8/8/8/8/8/8",
+            "8/8/8/8/8/",
             "q7/pppppppp/8/2b5/8/8/8/8/8/8",
         ];
 
         for i_fen in incorrect {
             let board = Board::try_from(i_fen);
             assert!(board.is_err());
-            assert_eq!(board.unwrap_err(), "invalid number of ranks describing the board");
+            assert_eq!(
+                board.unwrap_err(),
+                "invalid number of ranks describing the board"
+            );
         }
     }
 
     #[test]
     fn board_try_from_str_fails_when_two_numbers_in_row() {
-        let incorrect = [
-            "62/8/8/8/8/8/8/8", "17/8/8/8/8/8/8/8", "8/8/8/8/8/8/8/53",
-        ];
+        let incorrect = ["62/8/8/8/8/8/8/8", "17/8/8/8/8/8/8/8", "8/8/8/8/8/8/8/53"];
 
         for i_fen in incorrect {
             let board = Board::try_from(i_fen);
             assert!(board.is_err());
-            assert_eq!(board.unwrap_err(), "two numbers next to each other in a rank");
+            assert_eq!(
+                board.unwrap_err(),
+                "two numbers next to each other in a rank"
+            );
         }
     }
 
     #[test]
     fn board_try_from_str_fails_when_rank_too_short() {
         let incorrect = [
-            "6p/8/8/8/8/8/8/8", "8/ppppp/8/8/8/8/8/8", "8/5pp/8/8/8/8/8/8"
+            "6p/8/8/8/8/8/8/8",
+            "8/ppppp/8/8/8/8/8/8",
+            "8/5pp/8/8/8/8/8/8",
         ];
 
         for i_fen in incorrect {
@@ -479,7 +489,9 @@ mod tests {
     #[test]
     fn board_try_from_str_fails_when_rank_too_long() {
         let incorrect = [
-            "9/8/8/8/8/8/8/8", "8/pppppppppp/8/8/8/8/8/8", "8/8/8/8/bbbbbbbbbbbbb/8/8/8"
+            "9/8/8/8/8/8/8/8",
+            "8/pppppppppp/8/8/8/8/8/8",
+            "8/8/8/8/bbbbbbbbbbbbb/8/8/8",
         ];
 
         for i_fen in incorrect {
@@ -498,7 +510,10 @@ mod tests {
                 let fen = format!("{}7/8/8/8/8/8/8/8", ch);
                 let board = Board::try_from(fen.as_ref());
                 assert!(board.is_err());
-                assert_eq!(board.unwrap_err(), "failed to parse because of invalid character");
+                assert_eq!(
+                    board.unwrap_err(),
+                    "failed to parse because of invalid character"
+                );
             }
         }
 
@@ -507,7 +522,10 @@ mod tests {
                 let fen = format!("{}7/8/8/8/8/8/8/8", ch);
                 let board = Board::try_from(fen.as_ref());
                 assert!(board.is_err());
-                assert_eq!(board.unwrap_err(), "failed to parse because of invalid character");
+                assert_eq!(
+                    board.unwrap_err(),
+                    "failed to parse because of invalid character"
+                );
             }
         }
     }
@@ -515,7 +533,7 @@ mod tests {
     #[test]
     fn board_try_from_str_corners_taken() {
         let board = Board::try_from("q6n/8/8/8/8/8/8/B6R").unwrap();
-         
+
         let expected_board = r#"8 [q][ ][ ][ ][ ][ ][ ][n]
 7 [ ][ ][ ][ ][ ][ ][ ][ ]
 6 [ ][ ][ ][ ][ ][ ][ ][ ]
@@ -529,7 +547,7 @@ mod tests {
 
         let actual_board = format!("{:?}", board);
         assert_eq!(expected_board, actual_board);
-       
+
         assert_eq!(board.count_pieces(piece::Color::White), 2);
         assert_eq!(board.count_pieces(piece::Color::Black), 2);
     }
@@ -537,7 +555,7 @@ mod tests {
     #[test]
     fn board_default_returns_starting_position() {
         let board = Board::default();
-        
+
         let expected_board = r#"8 [r][n][b][q][k][b][n][r]
 7 [p][p][p][p][p][p][p][p]
 6 [ ][ ][ ][ ][ ][ ][ ][ ]
@@ -551,7 +569,7 @@ mod tests {
 
         let actual_board = format!("{:?}", board);
         assert_eq!(expected_board, actual_board);
-       
+
         assert_eq!(board.count_pieces(piece::Color::White), 16);
         assert_eq!(board.count_pieces(piece::Color::Black), 16);
     }

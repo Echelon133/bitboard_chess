@@ -365,7 +365,9 @@ mod tests {
         let bitwise_or_result = white_squares | black_squares;
 
         // expect all 64 unique squares to be set to 1
-        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        let set = bitwise_or_result
+            .iter()
+            .collect::<HashSet<square::Square>>();
         assert_eq!(set.len(), 64);
         assert_eq!(bitwise_or_result.get_bits(), u64::MAX);
     }
@@ -386,7 +388,9 @@ mod tests {
         let bitwise_or_result = white_squares | white_squares_clone;
 
         // expect 32 unique squares to be set to 1
-        let set = bitwise_or_result.iter().collect::<HashSet<square::Square>>();
+        let set = bitwise_or_result
+            .iter()
+            .collect::<HashSet<square::Square>>();
         assert_eq!(set.len(), 32);
 
         // a result of bitwise OR of the value with itself should be the value itself
