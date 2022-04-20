@@ -30,6 +30,15 @@ impl Move {
 impl TryFrom<&str> for Move {
     type Error = &'static str;
 
+    /// Creates a [`Move`] out of 4 ascii characters that represent two squares between
+    /// which a piece moves. First two characters represent the start square,
+    /// and the other two characters represent the target square.
+    ///
+    /// Example valid values:
+    /// - "a1b2"
+    /// - "c5c6"
+    /// - "h1h8"
+    ///
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if !value.is_ascii() {
             Err("cannot create move from str containing non-ascii chars")
@@ -65,23 +74,24 @@ impl Debug for Move {
     }
 }
 
-/// Represents a move between two squares as they would be represented in the
+/// Represents a move between two squares as it would be represented in the
 /// UCI notation.
 ///
 /// Example moves in this notation:
-/// - 'e2e4' (pawn moved from e2 to e4)
-/// - 'e1g1' (white king castled short)
-/// - 'e1c1' (white king castled long)
-/// - 'e7d8n' (white pawn from e7 captures on d8 and promotes to a knight)
-/// - 'e7e8q' (white pawn from e7 moves to e8 and promotes to a queen)
+/// - 'e2e4'
+/// - 'e1g1'
+/// - 'e1c1'
+/// - 'e7d8n'
+/// - 'e7e8q'
 ///
 /// This notation is obviously context dependent. For example "e2e4" might
-/// represent a move of a pawn, rook or queen. Until we don't check what piece
-/// is put on the e2 square, we do not have the information about what kind of move
+/// represent a move of a pawn, rook or queen. Until it's checked what piece
+/// is placed on the e2 square, there is no information about what kind of move
 /// this notation describes.
 ///
-/// That also means that we have no way to differentiate between a regular pawn
-/// capture and en-passant capture, because both can be represented identically.
+/// That also means that without seeing the board, there is no way to
+/// differentiate between a regular pawn capture and en-passant capture,
+/// because both can be represented identically.
 ///
 /// A move represents castling if the king still has the right to castle
 /// and it's being moved from its original square two squares to either side (depending
@@ -117,6 +127,22 @@ impl Debug for UCIMove {
 impl TryFrom<&str> for UCIMove {
     type Error = &'static str;
 
+    /// Creates a [`UCIMove`] out of 4 or 5 ascii characters.
+    /// First 4 characters always represent two squares between which a piece moves.
+    /// First two characters represent the start square, and the other two characters
+    /// represent the target square.
+    ///
+    /// If only 4 characters are provided, the returned enum's variant will be
+    /// [`UCIMove::Regular`] and will only contain a [`Move`] object that holds
+    /// start and target square information.
+    ///
+    /// If an additional, 5th character is provided, then the returned enum's variant
+    /// will be [`UCIMove::Promotion`] and apart from containing a [`Move`] object,
+    /// it will also contain a [`piece::Kind`] that holds the information about the
+    /// piece that is supposed to appear on the board after the pawn promotion.
+    /// This 5th character must be a valid character that represents a piece that's not
+    /// a pawn or a king.
+    ///
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if !value.is_ascii() {
             Err("cannot create uci move from str containing non-ascii chars")
