@@ -15,6 +15,17 @@ impl Kind {
     pub fn index(&self) -> usize {
         *self as usize
     }
+
+    pub fn as_char(&self) -> char {
+        match self {
+            Kind::Pawn => 'p',
+            Kind::Rook => 'r',
+            Kind::Knight => 'n',
+            Kind::Bishop => 'b',
+            Kind::Queen => 'q',
+            Kind::King => 'k',
+        }
+    }
 }
 
 impl TryFrom<usize> for Kind {
@@ -36,6 +47,23 @@ impl TryFrom<usize> for Kind {
         };
 
         Ok(val)
+    }
+}
+
+impl TryFrom<char> for Kind {
+    type Error = &'static str;
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        let kind = match value.to_ascii_lowercase() {
+            'p' => Kind::Pawn,
+            'r' => Kind::Rook,
+            'n' => Kind::Knight,
+            'b' => Kind::Bishop,
+            'q' => Kind::Queen,
+            'k' => Kind::King,
+            _ => return Err("char does not represent a valid piece"),
+        };
+        Ok(kind)
     }
 }
 
@@ -72,15 +100,7 @@ impl Piece {
 
 impl Display for Piece {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ch = match self.get_kind() {
-            Kind::Pawn => 'p',
-            Kind::Rook => 'r',
-            Kind::Knight => 'n',
-            Kind::Bishop => 'b',
-            Kind::Queen => 'q',
-            Kind::King => 'k',
-        };
-
+        let mut ch = self.get_kind().as_char();
         if self.get_color() == Color::White {
             ch = ch.to_ascii_uppercase();
         }
@@ -115,15 +135,7 @@ impl TryFrom<char> for Piece {
                 true => Color::White,
                 false => Color::Black,
             };
-            let kind = match value.to_ascii_lowercase() {
-                'p' => Kind::Pawn,
-                'r' => Kind::Rook,
-                'n' => Kind::Knight,
-                'b' => Kind::Bishop,
-                'q' => Kind::Queen,
-                'k' => Kind::King,
-                _ => return Err("char does not represent a valid piece"),
-            };
+            let kind = Kind::try_from(value)?;
             Ok(Piece::new(kind, color))
         }
     }
