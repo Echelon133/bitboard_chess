@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 
+use crate::piece;
 use crate::square;
 
 /// Represents a move between two squares.
+#[derive(PartialEq)]
 pub struct Move {
     start: square::Square,
     target: square::Square,
@@ -60,6 +62,91 @@ impl TryFrom<&str> for Move {
 impl Debug for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}{:?}", self.get_start(), self.get_target())
+    }
+}
+
+/// Represents a move between two squares as they would be represented in the
+/// UCI notation.
+///
+/// Example moves in this notation:
+/// - 'e2e4' (pawn moved from e2 to e4)
+/// - 'e1g1' (white king castled short)
+/// - 'e1c1' (white king castled long)
+/// - 'e7d8n' (white pawn from e7 captures on d8 and promotes to a knight)
+/// - 'e7e8q' (white pawn from e7 moves to e8 and promotes to a queen)
+///
+/// This notation is obviously context dependent. For example "e2e4" might
+/// represent a move of a pawn, rook or queen. Until we don't check what piece
+/// is put on the e2 square, we do not have the information about what kind of move
+/// this notation describes.
+///
+/// That also means that we have no way to differentiate between a regular pawn
+/// capture and en-passant capture, because both can be represented identically.
+///
+/// A move represents castling if the king still has the right to castle
+/// and it's being moved from its original square two squares to either side (depending
+/// on whether it's kingside or queenside castling).
+///
+/// Only promoting moves require additional information, so that it's known what
+/// kind of piece is supposed to appear on the board during pawn promotion.
+///
+pub enum UCIMove {
+    Regular {
+        m: Move,
+    },
+    /// Represents a move that promotes a pawn.
+    Promotion {
+        m: Move,
+        k: piece::Kind,
+    },
+}
+
+impl Debug for UCIMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UCIMove::Regular { m } => {
+                write!(f, "{:?}", m)
+            }
+            UCIMove::Promotion { m, k } => {
+                write!(f, "{:?}{}", m, k.as_char())
+            }
+        }
+    }
+}
+
+impl TryFrom<&str> for UCIMove {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if !value.is_ascii() {
+            Err("cannot create uci move from str containing non-ascii chars")
+        } else if (value.len() != 4) && (value.len() != 5) {
+            Err("cannot create uci move from str that is not 4 or 5 chars long")
+        } else {
+            // value guaranteed to be 4 or 5 ascii chars
+            let uci_move = match value.len() {
+                4 => UCIMove::Regular {
+                    m: Move::try_from(value)?,
+                },
+                5 => {
+                    let squares = &value[0..4];
+                    // guaranteed to have 5th ascii char
+                    let kind = value.chars().nth(4).unwrap();
+
+                    let mv = Move::try_from(squares)?;
+                    let kind = piece::Kind::try_from(kind)?;
+
+                    if kind == piece::Kind::Pawn || kind == piece::Kind::King {
+                        return Err("cannot promote to this piece");
+                    }
+
+                    UCIMove::Promotion { m: mv, k: kind }
+                }
+                _ => unreachable!(),
+            };
+
+            Ok(uci_move)
+        }
     }
 }
 
@@ -140,5 +227,82 @@ mod tests {
         let m = Move::try_from("e2e4").unwrap();
         let debug = format!("{:?}", m);
         assert_eq!("e2e4", debug);
+    }
+
+    #[test]
+    fn ucimove_try_from_str_rejects_incorrect_len() {
+        let invalid = ["a", "aaaaab", "asdfasdfasdfasdf", "awr"];
+        for s in invalid {
+            let m = UCIMove::try_from(s);
+            assert!(m.is_err());
+            assert_eq!(
+                m.unwrap_err(),
+                "cannot create uci move from str that is not 4 or 5 chars long"
+            );
+        }
+    }
+
+    #[test]
+    fn ucimove_try_from_str_rejects_nonascii_chars() {
+        let nonascii = ["¡aaa", "©aaa", "¢bbb", "¼bbb"];
+        for s in nonascii {
+            let m = UCIMove::try_from(s);
+            assert!(m.is_err());
+            assert_eq!(
+                m.unwrap_err(),
+                "cannot create uci move from str containing non-ascii chars"
+            );
+        }
+    }
+
+    #[test]
+    fn ucimove_try_from_str_accepts_valid_regular_moves() {
+        let valid_moves = ["e2e4", "e7e5", "e1g1", "g1f3"];
+
+        for mv in valid_moves {
+            let expected_move = Move::try_from(mv).unwrap();
+            let uci_m = UCIMove::try_from(mv).unwrap();
+
+            if let UCIMove::Regular { m } = uci_m {
+                assert_eq!(expected_move, m);
+            } else {
+                panic!("incorrect uci move variant")
+            }
+        }
+    }
+
+    #[test]
+    fn ucimove_try_from_str_accepts_valid_promotion_moves() {
+        let valid_moves = [
+            ("e7e8q", "e7e8", 'q'),
+            ("a7b8n", "a7b8", 'n'),
+            ("d2d1b", "d2d1", 'b'),
+            ("h2g1r", "h2g1", 'r'),
+        ];
+
+        for (full_move, expected_mv, expected_k) in valid_moves {
+            let expected_move = Move::try_from(expected_mv).unwrap();
+            let expected_kind = piece::Kind::try_from(expected_k).unwrap();
+
+            let uci_m = UCIMove::try_from(full_move).unwrap();
+
+            if let UCIMove::Promotion { m, k } = uci_m {
+                assert_eq!(expected_move, m);
+                assert_eq!(expected_kind, k);
+            } else {
+                panic!("incorrect uci move variant")
+            }
+        }
+    }
+
+    #[test]
+    fn ucimove_debug_is_correct() {
+        let m1 = UCIMove::try_from("e2e4").unwrap();
+        let debug = format!("{:?}", m1);
+        assert_eq!("e2e4", debug);
+
+        let m2 = UCIMove::try_from("e7e8q").unwrap();
+        let debug = format!("{:?}", m2);
+        assert_eq!("e7e8q", debug);
     }
 }
