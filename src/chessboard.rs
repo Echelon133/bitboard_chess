@@ -67,23 +67,22 @@ impl Debug for Chessboard {
             piece::Color::White => "White",
             piece::Color::Black => "Black",
         };
-
         write!(f, "{} to play\n", color)?;
 
         let mut castling_symbols = String::new();
-        if self.context.can_castle(piece::Color::White, context::Side::Kingside) {
-            castling_symbols.push('K');
+        // the order is important, because if each side has all rights
+        // to castle, then the result should be "KQkq"
+        let castling_to_check = [
+            (piece::Color::White, context::Side::Kingside, 'K'),
+            (piece::Color::White, context::Side::Queenside, 'Q'),
+            (piece::Color::Black, context::Side::Kingside, 'k'),
+            (piece::Color::Black, context::Side::Queenside, 'q'),
+        ];
+        for (color, side, symbol) in castling_to_check {
+            if self.context.can_castle(color, side) {
+                castling_symbols.push(symbol);
+            }
         }
-        if self.context.can_castle(piece::Color::White, context::Side::Queenside) {
-            castling_symbols.push('Q');
-        }
-        if self.context.can_castle(piece::Color::Black, context::Side::Kingside) {
-            castling_symbols.push('k');
-        }
-        if self.context.can_castle(piece::Color::Black, context::Side::Queenside) {
-            castling_symbols.push('q');
-        }
-        
         if castling_symbols.len() == 0 {
             castling_symbols.push('-');
         }
