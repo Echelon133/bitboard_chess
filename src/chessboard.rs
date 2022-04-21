@@ -2,7 +2,9 @@ use std::fmt::Debug;
 
 use crate::board;
 use crate::context;
+use crate::moves;
 use crate::piece;
+use crate::square;
 
 /// Represents a playable chessboard.
 ///
@@ -16,6 +18,39 @@ use crate::piece;
 pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
+}
+
+impl Chessboard {
+
+    /// Executes a move on the board. If the move is not legal, meaning:
+    /// - it's incorrect for the type of piece which is being moved
+    /// - the color of the piece is not correct for that turn
+    /// - it puts its own king in check
+    ///
+    /// then such a move is rejected and does not appear on the board.
+    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<bool, &'static str> {
+        unimplemented!()
+    }
+
+    /// Undoes the last move that appeared on the board, restoring not only 
+    /// the state of pieces, but also the context of the board. This means
+    /// that e.g. undoing a move that removed some castling rights of the player restores
+    /// those rights.
+    ///
+    pub fn undo_last_move(&mut self) {
+        unimplemented!()
+    }
+
+    /// Finds all pseudo-legal moves of a piece that's placed on the given square.
+    ///
+    /// Pseudo-legal moves are moves that could potentially result in putting their own king 
+    /// in check.
+    ///
+    /// Returns [`Some`] containing a [`Vec`] with moves if there is a piece on the given square. 
+    /// Otherwise returns [`None`].
+    pub fn find_pseudolegal_moves(&self, s: square::Square) -> Option<Vec<moves::UCIMove>> {
+        unimplemented!()
+    }
 }
 
 impl Default for Chessboard {
