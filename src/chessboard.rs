@@ -19,7 +19,6 @@ pub struct Chessboard {
 }
 
 impl Default for Chessboard {
-
     /// Creates a [`Chessboard`] with a default setup of pieces.
     /// The default chessboard is equivalent to a board started from this FEN:
     /// - "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -27,14 +26,14 @@ impl Default for Chessboard {
         Self {
             inner_board: board::Board::default(),
             context: context::Context::default(),
-        }   
+        }
     }
 }
 
 impl TryFrom<&str> for Chessboard {
     type Error = &'static str;
 
-    /// Creates a [`Chessboard`] from a FEN string. 
+    /// Creates a [`Chessboard`] from a FEN string.
     ///
     /// Example FEN strings:
     /// - "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -107,7 +106,7 @@ mod tests {
     #[test]
     fn chessboard_debug_works() {
         let board = Chessboard::default();
-        
+
         let expected_debug = r#"8 [r][n][b][q][k][b][n][r]
 7 [p][p][p][p][p][p][p][p]
 6 [ ][ ][ ][ ][ ][ ][ ][ ]
@@ -131,8 +130,7 @@ Fullmove: 1
 
     #[test]
     fn chessboard_try_from_str_works() {
-        let board = 
-            Chessboard::try_from("1k5b/8/r5p1/6P1/1P6/4P3/8/4K3 w - - 1 14").unwrap();
+        let board = Chessboard::try_from("1k5b/8/r5p1/6P1/1P6/4P3/8/4K3 w - - 1 14").unwrap();
 
         let expected_debug = r#"8 [ ][k][ ][ ][ ][ ][ ][b]
 7 [ ][ ][ ][ ][ ][ ][ ][ ]
