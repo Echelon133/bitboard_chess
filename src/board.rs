@@ -151,7 +151,7 @@ impl Board {
     /// Returns an immutable reference to the bitboard that represens squares taken by
     /// the given color.
     #[inline(always)]
-    fn get_squares_taken(&self, color: piece::Color) -> &bitboard::Bitboard {
+    pub fn get_squares_taken(&self, color: piece::Color) -> &bitboard::Bitboard {
         match color {
             piece::Color::White => &self.white_taken,
             piece::Color::Black => &self.black_taken,
