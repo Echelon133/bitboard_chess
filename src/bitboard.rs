@@ -10,7 +10,6 @@ use crate::square;
 /// - 'b1' is 0b0010
 /// - 'c1' is 0b0100
 /// - 'd1' is 0b1000
-///
 /// - 'h8' is 0x8000000000000000 (only the most significant bit)
 ///
 /// The ordering goes left-to-right and bottom-to-top. [`square::Square`] holds

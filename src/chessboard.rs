@@ -21,7 +21,6 @@ pub struct Chessboard {
 }
 
 impl Chessboard {
-
     /// Executes a move on the board. If the move is not legal, meaning:
     /// - it's incorrect for the type of piece which is being moved
     /// - the color of the piece is not correct for that turn
@@ -32,7 +31,7 @@ impl Chessboard {
         unimplemented!()
     }
 
-    /// Undoes the last move that appeared on the board, restoring not only 
+    /// Undoes the last move that appeared on the board, restoring not only
     /// the state of pieces, but also the context of the board. This means
     /// that e.g. undoing a move that removed some castling rights of the player restores
     /// those rights.
@@ -43,10 +42,10 @@ impl Chessboard {
 
     /// Finds all pseudo-legal moves of a piece that's placed on the given square.
     ///
-    /// Pseudo-legal moves are moves that could potentially result in putting their own king 
+    /// Pseudo-legal moves are moves that could potentially result in putting their own king
     /// in check.
     ///
-    /// Returns [`Some`] containing a [`Vec`] with moves if there is a piece on the given square. 
+    /// Returns [`Some`] containing a [`Vec`] with moves if there is a piece on the given square.
     /// Otherwise returns [`None`].
     pub fn find_pseudolegal_moves(&self, s: square::Square) -> Option<Vec<moves::UCIMove>> {
         unimplemented!()
