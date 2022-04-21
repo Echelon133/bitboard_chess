@@ -4,7 +4,7 @@ use crate::piece;
 use crate::square;
 
 /// Represents a move between two squares.
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub struct Move {
     start: square::Square,
     target: square::Square,
