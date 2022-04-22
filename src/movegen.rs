@@ -207,7 +207,49 @@ fn find_pawn_moves(
             }
         },
         piece::Color::Black => {
+            let mut attack_bitboard = bitboard::Bitboard::default();
+            let left = square::Square::from(square_index as u8 - 9);
+            let right = square::Square::from(square_index as u8 - 7);
+            attack_bitboard.set(left);
+            attack_bitboard.set(right);
 
+            // create a mask of 8 bits that covers the entire attacked rank
+            let mask = 0b11111111u64 << (8 * (pawn_rank.index() - 1));
+            let attacked_rank_mask = bitboard::Bitboard::from(mask);
+            
+            // make sure attacked squares are on the rank above the pawn and didn't 
+            // wrap around if the pawn was from file A or H
+            let attack_bitboard = attack_bitboard & attacked_rank_mask;
+            // only attack squares on which white pieces are placed
+            let attack_bitboard = attack_bitboard & *white_taken;
+
+            // moves that capture and promote
+            if pawn_rank == square::Rank::R2 {
+                for attacked_square in attack_bitboard.iter() {
+                    let mv = moves::Move::new(piece_square, attacked_square);
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Knight,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Bishop,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Queen,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Rook,
+                    });
+                }
+            } else {
+                for attacked_square in attack_bitboard.iter() {
+                    let mv = moves::Move::new(piece_square, attacked_square);
+                    moves.push(moves::UCIMove::Regular { m: mv });
+                }
+            }
         }
     }
     moves
@@ -523,6 +565,122 @@ mod tests {
         let (white_taken, black_taken) = extract_squares_taken(&board);
 
         let square = square::Square::try_from("h3").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 0);
+    }
+
+    #[test]
+    fn pawn_black_can_attack_enemy_pieces() {
+        let board = board::Board::try_from("8/7k/3p4/2N1N3/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("d6").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 3);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["c5", "d5", "e5"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
+    }
+
+    #[test]
+    fn pawn_black_cannot_attack_own_pieces() {
+        let board = board::Board::try_from("8/7k/3p4/2n1n3/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("d6").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 1);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["d5"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
+    }
+
+    #[test]
+    fn pawn_black_on_file_a_attacks_enemy_pieces() {
+        let board = board::Board::try_from("8/7k/p7/1P6/7P/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("a6").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 2);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["b5", "a5"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
+    }
+
+    #[test]
+    fn pawn_black_on_file_a_cannot_attack_own_pieces() {
+        let board = board::Board::try_from("8/7k/p7/np6/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("a6").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 0);
+    }
+
+    #[test]
+    fn pawn_black_on_file_h_attacks_enemy_pieces() {
+        let board = board::Board::try_from("8/7k/P6p/6P1/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("h6").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 2);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["g5", "h5"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
+    }
+
+    #[test]
+    fn pawn_black_on_file_h_cannot_attack_own_pieces() {
+        let board = board::Board::try_from("8/7k/7p/6pr/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("h6").unwrap();
         let found_moves = find_pawn_moves(
             square,
             white_taken,
