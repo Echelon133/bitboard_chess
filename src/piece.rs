@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 /// Represents all types of pieces that can be found on the chessboard.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Kind {
     Pawn,
     Knight,
