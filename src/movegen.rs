@@ -29,69 +29,104 @@ fn find_pawn_moves(
 
     let all_taken = *white_taken | *black_taken;
 
-    // if the pawn is white, then it moves towards the 8th rank (positive direction)
-    // if the pawn is black, then it moves towards the 1st rank (negative direction)
-    let (piece_color, piece_direction): (piece::Color, i8) = match white_taken.is_set(piece_square)
+    // the invariant: piece_square must be a square that's set to 1 either
+    // for white_taken or black_taken, so if it's set for white_taken, then it should be
+    // impossible for it to be set to 1 for black_taken
+    let piece_color = match white_taken.is_set(piece_square)
     {
-        true => (piece::Color::White, 1),
-        false => (piece::Color::Black, -1),
+        true => piece::Color::White,
+        false => piece::Color::Black,
     };
 
     let mut can_move_once = false;
+    let pawn_rank = piece_square.get_rank();
 
-    // calculate the index of a square that's right above (in case of white)
-    // or right below (in case of black) the square on which the pawn is
-    let one_rank_move_index = piece_square.get_index() + ((8 * piece_direction) as usize);
-    // piece_square index is always in range 0..=63 and adding 8 or subtracting 8 is never
-    // going outside of that range, since the invariant is that pawns in the game cannot
-    // remain on the 1st and 8th rank
-    let target_square1 = square::Square::from(one_rank_move_index as u8);
-    // if that square is free, then it's possible to move there
-    if !all_taken.is_set(target_square1) {
-        can_move_once = true;
-        let mv = moves::Move::new(piece_square, target_square1);
-        match target_square1.get_rank() {
-            // move is a promotion
-            square::Rank::R8 | square::Rank::R1 => {
-                moves.push(moves::UCIMove::Promotion {
-                    m: mv,
-                    k: piece::Kind::Knight,
-                });
-                moves.push(moves::UCIMove::Promotion {
-                    m: mv,
-                    k: piece::Kind::Bishop,
-                });
-                moves.push(moves::UCIMove::Promotion {
-                    m: mv,
-                    k: piece::Kind::Queen,
-                });
-                moves.push(moves::UCIMove::Promotion {
-                    m: mv,
-                    k: piece::Kind::Rook,
-                });
+    match piece_color {
+        piece::Color::White => {
+            // if we shift the bitboard that represents all taken squares
+            // right by 8, this means we are moving all ranks one below,
+            // so if we move all ranks one below and then check the square where our
+            // pawn was before the shift, we'll know whether the square above our pawn
+            // was free
+            let shift_one_rank = all_taken >> 8;
+            if !shift_one_rank.is_set(piece_square) {
+                can_move_once = true;
+                let square_above = square::Square::from((piece_square.get_index() + 8) as u8);
+                let mv = moves::Move::new(piece_square, square_above);
+                // this move results in promotion
+                if pawn_rank == square::Rank::R7 {
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Knight,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Bishop,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Queen,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Rook,
+                    });
+                } else {
+                    moves.push(moves::UCIMove::Regular { m: mv });
+                }
             }
-            // move is not a promotion
-            _ => {
+
+            let shift_two_ranks = all_taken >> 16;
+            if can_move_once
+                && (pawn_rank == square::Rank::R2)
+                && !shift_two_ranks.is_set(piece_square)
+            {
+                let square_two_above = square::Square::from((piece_square.get_index() + 16) as u8);
+                let mv = moves::Move::new(piece_square, square_two_above);
                 moves.push(moves::UCIMove::Regular { m: mv });
             }
-        };
-    }
+        }
+        piece::Color::Black => {
+            // if we shift the bitboard that represents all taken squares
+            // left by 8, this means we are moving all ranks one above,
+            // so if we move all ranks one above and then check the square where our
+            // pawn was before the shift, we'll know whether the square below our pawn
+            // was free
+            let shift_one_rank = all_taken << 8;
+            if !shift_one_rank.is_set(piece_square) {
+                can_move_once = true;
+                let square_below = square::Square::from((piece_square.get_index() - 8) as u8);
+                let mv = moves::Move::new(piece_square, square_below);
+                // this move results in promotion
+                if pawn_rank == square::Rank::R2 {
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Knight,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Bishop,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Queen,
+                    });
+                    moves.push(moves::UCIMove::Promotion {
+                        m: mv,
+                        k: piece::Kind::Rook,
+                    });
+                } else {
+                    moves.push(moves::UCIMove::Regular { m: mv });
+                }
+            }
 
-    // pawn can move two squares only if it can move one square and is on its home rank
-    if can_move_once {
-        let start_rank = piece_square.get_rank();
-        if (piece_color == piece::Color::White && start_rank == square::Rank::R2)
-            || (piece_color == piece::Color::Black && start_rank == square::Rank::R7)
-        {
-            // just like in the one square move case: it's safe to add/subtract 16 from
-            // the square's index, because we know that:
-            // - white is on the 2nd rank, so adding 16 lets us move two ranks above
-            // - black is on the 7th rank, so subtracting 16 lets us move two ranks below
-            let two_rank_move_index = piece_square.get_index() + ((16 * piece_direction) as usize);
-            let target_square2 = square::Square::from(two_rank_move_index as u8);
-
-            if !all_taken.is_set(target_square2) {
-                let mv = moves::Move::new(piece_square, target_square2);
+            let shift_two_ranks = all_taken << 16;
+            if can_move_once
+                && (pawn_rank == square::Rank::R7)
+                && !shift_two_ranks.is_set(piece_square)
+            {
+                let square_two_below = square::Square::from((piece_square.get_index() - 16) as u8);
+                let mv = moves::Move::new(piece_square, square_two_below);
                 moves.push(moves::UCIMove::Regular { m: mv });
             }
         }
@@ -102,6 +137,8 @@ fn find_pawn_moves(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::bitboard;
     use crate::board;
     use crate::context;
@@ -240,5 +277,63 @@ mod tests {
         );
 
         assert_eq!(found_moves.len(), 0);
+    }
+
+    #[test]
+    fn pawn_white_on_promotion_square_has_promotion_moves() {
+        let board =
+            board::Board::try_from("8/1P5k/8/8/8/8/8/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("b7").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 4);
+        let expected_moves = [
+            moves::UCIMove::try_from("b7b8q").unwrap(),
+            moves::UCIMove::try_from("b7b8b").unwrap(),
+            moves::UCIMove::try_from("b7b8n").unwrap(),
+            moves::UCIMove::try_from("b7b8r").unwrap(),
+        ];
+
+        let expected_set = expected_moves.into_iter().collect::<HashSet<moves::UCIMove>>();
+        
+        for found_move in &found_moves {
+            assert!(expected_set.contains(found_move));
+        }
+    }
+
+    #[test]
+    fn pawn_black_on_promotion_square_has_promotion_moves() {
+        let board =
+            board::Board::try_from("8/7k/8/8/8/8/1p6/6K1").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("b2").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 4);
+        let expected_moves = [
+            moves::UCIMove::try_from("b2b1q").unwrap(),
+            moves::UCIMove::try_from("b2b1b").unwrap(),
+            moves::UCIMove::try_from("b2b1n").unwrap(),
+            moves::UCIMove::try_from("b2b1r").unwrap(),
+        ];
+
+        let expected_set = expected_moves.into_iter().collect::<HashSet<moves::UCIMove>>();
+        
+        for found_move in &found_moves {
+            assert!(expected_set.contains(found_move));
+        }
     }
 }
