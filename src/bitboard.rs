@@ -1,4 +1,8 @@
-use std::{fmt::Debug, ops::BitOr};
+use std::{
+    fmt::Debug,
+    ops::{BitAnd, BitOr, Shl, Shr},
+    u8,
+};
 
 use crate::square;
 
@@ -70,11 +74,35 @@ impl From<u64> for Bitboard {
     }
 }
 
+impl BitAnd<Bitboard> for Bitboard {
+    type Output = Bitboard;
+    /// Returns bitwise AND of the bits of two bitboards.
+    fn bitand(self, rhs: Bitboard) -> Self::Output {
+        Bitboard::from(self.get_bits() & rhs.get_bits())
+    }
+}
+
 impl BitOr<Self> for Bitboard {
     type Output = Bitboard;
     /// Returns bitwise OR of the bits of two bitboards.
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
+    }
+}
+
+impl Shl<u8> for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits shifted left
+    fn shl(self, rhs: u8) -> Self::Output {
+        Bitboard::from(self.get_bits() << rhs)
+    }
+}
+
+impl Shr<u8> for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits shifted right
+    fn shr(self, rhs: u8) -> Self::Output {
+        Bitboard::from(self.get_bits() >> rhs)
     }
 }
 
@@ -342,6 +370,37 @@ mod tests {
     }
 
     #[test]
+    fn bitboard_bitand_works() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let mut black_squares = Bitboard::default();
+        // set every black square (so all squares from 0..=63 which have an odd index)
+        for index in 0..=63 {
+            if index % 2 != 0 {
+                let square = square::Square::from(index);
+                black_squares.set(square);
+            }
+        }
+
+        let bitwise_and_result = white_squares & black_squares;
+        let bitwise_and_self = white_squares & white_squares;
+
+        // bitwise AND when two bitboard have alternating ones and zeroes offset by 1
+        // should result in simply 0, because there is no position where bits are set to 1
+        // in both bitboards
+        assert_eq!(bitwise_and_result.get_bits(), 0);
+        // (white_squares AND white_squares) should result in white_squares
+        assert_eq!(bitwise_and_self.get_bits(), white_squares.get_bits())
+    }
+
+    #[test]
     fn bitboard_bitor_works() {
         let mut white_squares = Bitboard::default();
         // set every white square (so all squares from 0..=63 which have an even index)
@@ -394,5 +453,41 @@ mod tests {
 
         // a result of bitwise OR of the value with itself should be the value itself
         assert_eq!(white_squares, bitwise_or_result);
+    }
+
+    #[test]
+    fn bitboard_shl_works() {
+        let mut white_squares = Bitboard::default();
+        // set a1 square and h7 square on the board
+        white_squares.set(square::Square::try_from("a1").unwrap());
+        white_squares.set(square::Square::try_from("h7").unwrap());
+
+        // this should move a1 to a2, and h7 to h8
+        let shift_left_entire_rank = white_squares << 8;
+
+        let squares_set = shift_left_entire_rank
+            .iter()
+            .collect::<HashSet<square::Square>>();
+
+        assert!(squares_set.contains(&square::Square::try_from("a2").unwrap()));
+        assert!(squares_set.contains(&square::Square::try_from("h8").unwrap()));
+    }
+
+    #[test]
+    fn bitboard_shr_works() {
+        let mut black_squares = Bitboard::default();
+        // set a8 square and h7 square on the board
+        black_squares.set(square::Square::try_from("a8").unwrap());
+        black_squares.set(square::Square::try_from("h7").unwrap());
+
+        // this should move a8 to a7, and h7 to h6
+        let shift_right_entire_rank = black_squares >> 8;
+
+        let squares_set = shift_right_entire_rank
+            .iter()
+            .collect::<HashSet<square::Square>>();
+
+        assert!(squares_set.contains(&square::Square::try_from("a7").unwrap()));
+        assert!(squares_set.contains(&square::Square::try_from("h6").unwrap()));
     }
 }
