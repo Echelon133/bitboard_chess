@@ -503,4 +503,64 @@ mod tests {
         let squares = &["c3", "d3"];
         check_pawn!("c4" on board having context can be moved to squares);
     }
+
+    #[test]
+    fn knight_white_on_edges_attacks_two_enemy_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_white_on_edges_cannot_attack_two_own_squares() {
+        assert!(false)
+    }
+
+    #[test]
+    fn knight_black_on_edges_attacks_two_enemy_squares() {
+        assert!(false)
+    }
+
+    #[test]
+    fn knight_black_on_edges_cannot_attack_two_own_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_white_near_edges_attacks_four_enemy_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_white_near_edges_cannot_attack_four_own_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_black_near_edges_attacks_four_enemy_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_black_near_edges_cannot_attack_four_own_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_white_in_middle_attacks_eight_enemy_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_white_in_middle_cannot_attack_eight_own_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_black_in_middle_attacks_eight_enemy_squares() {
+        assert!(false);
+    }
+
+    #[test]
+    fn knight_black_in_middle_cannot_attack_eight_own_squares() {
+        assert!(false);
+    }
 }
