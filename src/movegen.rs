@@ -57,7 +57,7 @@ fn find_pawn_moves(
     piece_square: square::Square,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-    _context: &context::Context,
+    context: &context::Context,
 ) -> Vec<moves::UCIMove> {
     let mut moves = Vec::with_capacity(4);
 
@@ -178,10 +178,19 @@ fn find_pawn_moves(
     // set because of the wrap-around (more info in this function's docs)
     let attack_bitboard = attack_bitboard & attacked_rank_mask;
 
-    // TODO: this is the place where en-passant square should be checked,
-    // because the next step erases info about squares that are attacked
-    // but don't have an enemy piece on them (and since the pawn attacked during
-    // en-passant is not attacked directly, the information will be lost)
+    // check en-passant here, because the next bitwise AND only leaves squares that
+    // are directly attacked (i.e. only squares on which enemy pieces are remain, 
+    // which is not the case when it comes to en-passant, because the piece is not
+    // attacked directly)
+    if let Some(enpassant_target) = context.get_enpassant() {
+        // if the pawn attacks the en-passant target (which is placed behind the pawn that's
+        // just moved two squares) then it's possible that a capture can take place
+        if attack_bitboard.is_set(enpassant_target) {
+            let mv = moves::Move::new(piece_square, enpassant_target);
+            moves.push(moves::UCIMove::Regular { m: mv });
+        }
+    }
+
     let actually_attacked_squares = attack_bitboard & *opponent_taken;
 
     // moves that not only can capture, but also promote at the same time
@@ -709,5 +718,55 @@ mod tests {
         );
 
         assert_eq!(found_moves.len(), 0);
+    }
+
+    #[test]
+    fn pawn_white_can_capture_enpassant() {
+        let board = 
+            board::Board::try_from("rnbqkbnr/ppp1p1pp/3p4/4Pp2/8/8/PPPP1PPP/RNBQKBNR").unwrap();
+
+        // en-passant possible on the f6 square
+        let context = context::Context::try_from("w KQkq f6 0 3").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("e5").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context,
+        );
+
+        assert_eq!(found_moves.len(), 3);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["d6", "e6", "f6"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
+    }
+
+    #[test]
+    fn pawn_black_can_capture_enpassant() {
+        let board = 
+            board::Board::try_from("rnbqkbnr/pp1ppppp/8/4P3/2pP4/8/PPP2PPP/RNBQKBNR").unwrap();
+
+        // en-passant possible on the d3 square
+        let context = context::Context::try_from("w KQkq d3 0 3").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("c4").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context,
+        );
+
+        assert_eq!(found_moves.len(), 2);
+        let targets = extract_targets(&found_moves);
+        let expected_targets = notation_to_squares(&["c3", "d3"]);
+        for target in expected_targets {
+            assert!(targets.contains(&target));
+        }
     }
 }
