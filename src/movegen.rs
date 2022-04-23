@@ -41,12 +41,18 @@ use crate::square;
 /// - -9 - -7 - - - -
 ///
 /// If the pawn is on the A or H file, it can only attack one side. Calculating offsets
-/// for pawns on these files does not work exactly, because then one attacking square index
-/// wraps arround and ends on the same rank as the pawn, but on the opposite side of the board.
-/// To only take squares on the attacked rank into account (and eliminate wrapped around squares)
-/// the bitboard that stores attacked squares and a mask that has 8 lit bits on the attacked
-/// rank should have bitwise AND be performed on them. The resulting bitboard does not have 
-/// squares that got marked incorrectly due to being wrapped around.
+/// for pawns on these files does not work exactly as for pawns on other files, because
+/// the index of one attacked square wraps arround and ends
+/// up on an incorrect square that's (depending on the file and color of the pawn):
+/// - on the same rank as the pawn, but on the other side of the board
+/// - rank below/above the actually attacked rank, and still on the other side of the board
+///
+/// To only take squares on the attacked rank into account (and eliminate squares that
+/// got set incorrectly due to the index wrap-around) there should be a bitwise AND operation
+/// on the bits of a bitboard that contains the attacked squares and bits of a bitboard that
+/// has all squares on the attacked rank lit. This way all of the squares that are not
+/// on the attacked rank are eliminated.
+///
 fn find_pawn_moves(
     piece_square: square::Square,
     white_taken: &bitboard::Bitboard,
