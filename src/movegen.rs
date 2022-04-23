@@ -301,15 +301,13 @@ mod tests {
                 let m = $crate::square::Square::try_from(*m).unwrap();
                 let mv = $crate::moves::Move::new(square, m);
                 let kinds = [
-                    $crate::piece::Kind::Queen, 
+                    $crate::piece::Kind::Queen,
                     $crate::piece::Kind::Bishop,
                     $crate::piece::Kind::Rook,
                     $crate::piece::Kind::Knight,
                 ];
                 for kind in kinds {
-                    expected_moves.insert(
-                        $crate::moves::UCIMove::Promotion {m: mv, k: kind }
-                    );
+                    expected_moves.insert($crate::moves::UCIMove::Promotion { m: mv, k: kind });
                 }
             }
 
