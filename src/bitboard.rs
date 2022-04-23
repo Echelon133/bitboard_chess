@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{BitAnd, BitOr, Shl, Shr},
+    ops::{BitAnd, BitOr, Not, Shl, Shr},
     u8,
 };
 
@@ -103,6 +103,14 @@ impl Shr<u8> for Bitboard {
     /// Returns [`Bitboard`] with its bits shifted right
     fn shr(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() >> rhs)
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bit negated.
+    fn not(self) -> Self::Output {
+        Bitboard::from(!self.get_bits())
     }
 }
 
@@ -489,5 +497,14 @@ mod tests {
 
         assert!(squares_set.contains(&square::Square::try_from("a7").unwrap()));
         assert!(squares_set.contains(&square::Square::try_from("h6").unwrap()));
+    }
+
+    #[test]
+    fn bitboard_bitwise_not_works() {
+        let mut bitboard = Bitboard::default();
+
+        bitboard = !bitboard;
+
+        assert_eq!(bitboard.get_bits(), 0xFFFF_FFFF_FFFF_FFFF);
     }
 }
