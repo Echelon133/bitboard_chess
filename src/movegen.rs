@@ -179,7 +179,7 @@ fn find_pawn_moves(
     let attack_bitboard = attack_bitboard & attacked_rank_mask;
 
     // check en-passant here, because the next bitwise AND only leaves squares that
-    // are directly attacked (i.e. only squares on which enemy pieces are remain, 
+    // are directly attacked (i.e. only squares on which enemy pieces are remain,
     // which is not the case when it comes to en-passant, because the piece is not
     // attacked directly)
     if let Some(enpassant_target) = context.get_enpassant() {
@@ -274,12 +274,8 @@ mod tests {
         ($square:literal on $board:ident having $context:ident can be moved to $targets:ident) => {
             let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_pawn_moves(
-                square,
-                white_taken,
-                black_taken,
-                $context,
-            );
+            let found_moves =
+                $crate::movegen::find_pawn_moves(square, white_taken, black_taken, $context);
             assert_eq!(found_moves.len(), $targets.len());
             let targets = $crate::movegen::tests::extract_targets(&found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
@@ -290,14 +286,37 @@ mod tests {
         ($square:literal on $board:ident having $context:ident cannot be moved) => {
             let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_pawn_moves(
-                square,
-                white_taken,
-                black_taken,
-                $context,
-            );
+            let found_moves =
+                $crate::movegen::find_pawn_moves(square, white_taken, black_taken, $context);
             assert_eq!(found_moves.len(), 0);
-        }
+        };
+        ($square:literal on $board:ident having $context:ident can be promoted on $targets:ident) => {
+            let (white_taken, black_taken) = extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves =
+                $crate::movegen::find_pawn_moves(square, white_taken, black_taken, $context);
+            assert_eq!(found_moves.len(), $targets.len() * 4);
+            let mut expected_moves = HashSet::new();
+            for m in $targets {
+                let m = $crate::square::Square::try_from(*m).unwrap();
+                let mv = $crate::moves::Move::new(square, m);
+                let kinds = [
+                    $crate::piece::Kind::Queen, 
+                    $crate::piece::Kind::Bishop,
+                    $crate::piece::Kind::Rook,
+                    $crate::piece::Kind::Knight,
+                ];
+                for kind in kinds {
+                    expected_moves.insert(
+                        $crate::moves::UCIMove::Promotion {m: mv, k: kind }
+                    );
+                }
+            }
+
+            for found_move in &found_moves {
+                assert!(expected_moves.contains(found_move));
+            }
+        };
     }
 
     #[test]
@@ -311,14 +330,14 @@ mod tests {
     #[test]
     fn pawn_unmoved_has_correct_number_of_moves_when_blocked() {
         // pawn on a2 blocked by other piece on a4 has 1 move
-        let board = 
+        let board =
             &board::Board::try_from("rnbqkbnr/pppppppp/8/8/n7/8/PPPPPPPP/RNBQKBNR").unwrap();
         let context = &context::Context::default();
         let squares = &["a3"];
         check_pawn!("a2" on board having context can be moved to squares);
 
         // pawn on a2 blocked by other piece on a3 has 0 moves
-        let board = 
+        let board =
             &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/n7/PPPPPPPP/RNBQKBNR").unwrap();
         let context = &context::Context::default();
         check_pawn!("a2" on board having context cannot be moved);
@@ -345,122 +364,34 @@ mod tests {
 
     #[test]
     fn pawn_white_on_promotion_square_has_noncapturing_promotion_moves() {
-        let board = board::Board::try_from("8/1P5k/8/8/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("b7").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 4);
-        let expected_moves = [
-            moves::UCIMove::try_from("b7b8q").unwrap(),
-            moves::UCIMove::try_from("b7b8b").unwrap(),
-            moves::UCIMove::try_from("b7b8n").unwrap(),
-            moves::UCIMove::try_from("b7b8r").unwrap(),
-        ];
-
-        let expected_set = expected_moves
-            .into_iter()
-            .collect::<HashSet<moves::UCIMove>>();
-
-        for found_move in &found_moves {
-            assert!(expected_set.contains(found_move));
-        }
+        let board = &board::Board::try_from("8/1P5k/8/8/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b8"];
+        check_pawn!("b7" on board having context can be promoted on squares);
     }
 
     #[test]
     fn pawn_white_on_promotion_square_has_capturing_promotion_moves() {
-        let board = board::Board::try_from("bn2b2k/P7/8/8/8/8/8/1K6").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a7").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 4);
-        let expected_moves = [
-            moves::UCIMove::try_from("a7b8q").unwrap(),
-            moves::UCIMove::try_from("a7b8b").unwrap(),
-            moves::UCIMove::try_from("a7b8n").unwrap(),
-            moves::UCIMove::try_from("a7b8r").unwrap(),
-        ];
-
-        let expected_set = expected_moves
-            .into_iter()
-            .collect::<HashSet<moves::UCIMove>>();
-
-        for found_move in &found_moves {
-            assert!(expected_set.contains(found_move));
-        }
+        let board = &board::Board::try_from("bn2b2k/P7/8/8/8/8/8/1K6").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b8"];
+        check_pawn!("a7" on board having context can be promoted on squares);
     }
 
     #[test]
     fn pawn_black_on_promotion_square_has_noncapturing_promotion_moves() {
-        let board = board::Board::try_from("8/7k/8/8/8/8/1p6/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("b2").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 4);
-        let expected_moves = [
-            moves::UCIMove::try_from("b2b1q").unwrap(),
-            moves::UCIMove::try_from("b2b1b").unwrap(),
-            moves::UCIMove::try_from("b2b1n").unwrap(),
-            moves::UCIMove::try_from("b2b1r").unwrap(),
-        ];
-
-        let expected_set = expected_moves
-            .into_iter()
-            .collect::<HashSet<moves::UCIMove>>();
-
-        for found_move in &found_moves {
-            assert!(expected_set.contains(found_move));
-        }
+        let board = &board::Board::try_from("8/7k/8/8/8/8/1p6/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b1"];
+        check_pawn!("b2" on board having context can be promoted on squares);
     }
 
     #[test]
     fn pawn_black_on_promotion_square_has_capturing_promotion_moves() {
-        let board = board::Board::try_from("7k/8/8/8/8/8/7p/1K4NB").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("h2").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 4);
-        let expected_moves = [
-            moves::UCIMove::try_from("h2g1q").unwrap(),
-            moves::UCIMove::try_from("h2g1b").unwrap(),
-            moves::UCIMove::try_from("h2g1n").unwrap(),
-            moves::UCIMove::try_from("h2g1r").unwrap(),
-        ];
-
-        let expected_set = expected_moves
-            .into_iter()
-            .collect::<HashSet<moves::UCIMove>>();
-
-        for found_move in &found_moves {
-            assert!(expected_set.contains(found_move));
-        }
+        let board = &board::Board::try_from("7k/8/8/8/8/8/7p/1K4NB").unwrap();
+        let context = &context::Context::default();
+        let squares = &["g1"];
+        check_pawn!("h2" on board having context can be promoted on squares);
     }
 
     #[test]
@@ -557,7 +488,7 @@ mod tests {
 
     #[test]
     fn pawn_white_can_capture_enpassant() {
-        let board = 
+        let board =
             &board::Board::try_from("rnbqkbnr/ppp1p1pp/3p4/4Pp2/8/8/PPPP1PPP/RNBQKBNR").unwrap();
         // en-passant possible on the f6 square
         let context = &context::Context::try_from("w KQkq f6 0 3").unwrap();
@@ -567,7 +498,7 @@ mod tests {
 
     #[test]
     fn pawn_black_can_capture_enpassant() {
-        let board = 
+        let board =
             &board::Board::try_from("rnbqkbnr/pp1ppppp/8/4P3/2pP4/8/PPP2PPP/RNBQKBNR").unwrap();
         // en-passant possible on the d3 square
         let context = &context::Context::try_from("w KQkq d3 0 3").unwrap();
