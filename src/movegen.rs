@@ -400,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn pawn_white_on_promotion_square_has_promotion_moves() {
+    fn pawn_white_on_promotion_square_has_noncapturing_promotion_moves() {
         let board = board::Board::try_from("8/1P5k/8/8/8/8/8/6K1").unwrap();
         let (white_taken, black_taken) = extract_squares_taken(&board);
 
@@ -430,7 +430,38 @@ mod tests {
     }
 
     #[test]
-    fn pawn_black_on_promotion_square_has_promotion_moves() {
+    fn pawn_white_on_promotion_square_has_capturing_promotion_moves() {
+        let board = board::Board::try_from("bn2b2k/P7/8/8/8/8/8/1K6").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("a7").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 4);
+        let expected_moves = [
+            moves::UCIMove::try_from("a7b8q").unwrap(),
+            moves::UCIMove::try_from("a7b8b").unwrap(),
+            moves::UCIMove::try_from("a7b8n").unwrap(),
+            moves::UCIMove::try_from("a7b8r").unwrap(),
+        ];
+
+        let expected_set = expected_moves
+            .into_iter()
+            .collect::<HashSet<moves::UCIMove>>();
+
+        for found_move in &found_moves {
+            assert!(expected_set.contains(found_move));
+        }
+    }
+
+
+    #[test]
+    fn pawn_black_on_promotion_square_has_noncapturing_promotion_moves() {
         let board = board::Board::try_from("8/7k/8/8/8/8/1p6/6K1").unwrap();
         let (white_taken, black_taken) = extract_squares_taken(&board);
 
@@ -448,6 +479,36 @@ mod tests {
             moves::UCIMove::try_from("b2b1b").unwrap(),
             moves::UCIMove::try_from("b2b1n").unwrap(),
             moves::UCIMove::try_from("b2b1r").unwrap(),
+        ];
+
+        let expected_set = expected_moves
+            .into_iter()
+            .collect::<HashSet<moves::UCIMove>>();
+
+        for found_move in &found_moves {
+            assert!(expected_set.contains(found_move));
+        }
+    }
+    
+    #[test]
+    fn pawn_black_on_promotion_square_has_capturing_promotion_moves() {
+        let board = board::Board::try_from("7k/8/8/8/8/8/7p/1K4NB").unwrap();
+        let (white_taken, black_taken) = extract_squares_taken(&board);
+
+        let square = square::Square::try_from("h2").unwrap();
+        let found_moves = find_pawn_moves(
+            square,
+            white_taken,
+            black_taken,
+            &context::Context::default(),
+        );
+
+        assert_eq!(found_moves.len(), 4);
+        let expected_moves = [
+            moves::UCIMove::try_from("h2g1q").unwrap(),
+            moves::UCIMove::try_from("h2g1b").unwrap(),
+            moves::UCIMove::try_from("h2g1n").unwrap(),
+            moves::UCIMove::try_from("h2g1r").unwrap(),
         ];
 
         let expected_set = expected_moves
