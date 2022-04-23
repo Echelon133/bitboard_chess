@@ -76,12 +76,20 @@ fn find_pawn_moves(
     // start_rank - rank on which the pawn starts and can potentially move two squares at once
     // promotion_rank - rank on which the pawn can promote on its next move
     let (shift_one, shift_two, square_dist, start_rank, promotion_rank) = match piece_color {
-        piece::Color::White => {
-            (all_taken >> 8, all_taken >> 16, 8i8, square::Rank::R2, square::Rank::R7)
-        },
-        piece::Color::Black => {
-            (all_taken << 8, all_taken << 16, -8i8, square::Rank::R7, square::Rank::R2)
-        }
+        piece::Color::White => (
+            all_taken >> 8,
+            all_taken >> 16,
+            8i8,
+            square::Rank::R2,
+            square::Rank::R7,
+        ),
+        piece::Color::Black => (
+            all_taken << 8,
+            all_taken << 16,
+            -8i8,
+            square::Rank::R7,
+            square::Rank::R2,
+        ),
     };
 
     if !shift_one.is_set(piece_square) {
@@ -113,104 +121,91 @@ fn find_pawn_moves(
 
     if can_move_once && (pawn_rank == start_rank) && !shift_two.is_set(piece_square) {
         // square that's two ranks above (for white) and two ranks below (for black)
-        let square2 = square::Square::from((square_index + (2*square_dist)) as u8);
+        let square2 = square::Square::from((square_index + (2 * square_dist)) as u8);
         let mv = moves::Move::new(piece_square, square2);
         moves.push(moves::UCIMove::Regular { m: mv });
     }
 
     // only capturing moves
-    match piece_color {
-        piece::Color::White => {
-            let mut attack_bitboard = bitboard::Bitboard::default();
-            let left = square::Square::from(square_index as u8 + 7);
-            let right = square::Square::from(square_index as u8 + 9);
-            attack_bitboard.set(left);
-            attack_bitboard.set(right);
-
-            // create a mask of 8 bits that covers the entire attacked rank
-            let mask = 0b11111111u64 << (8 * (pawn_rank.index() + 1));
-            let attacked_rank_mask = bitboard::Bitboard::from(mask);
-            
-            // make sure attacked squares are on the rank above the pawn and didn't 
-            // wrap around if the pawn was from file A or H
-            let attack_bitboard = attack_bitboard & attacked_rank_mask;
-            // only attack squares on which black pieces are placed
-            let attack_bitboard = attack_bitboard & *black_taken;
-
-            // moves that capture and promote
-            if pawn_rank == square::Rank::R7 {
-                for attacked_square in attack_bitboard.iter() {
-                    let mv = moves::Move::new(piece_square, attacked_square);
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Knight,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Bishop,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Queen,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Rook,
-                    });
-                }
-            } else {
-                for attacked_square in attack_bitboard.iter() {
-                    let mv = moves::Move::new(piece_square, attacked_square);
-                    moves.push(moves::UCIMove::Regular { m: mv });
-                }
+    // left_square - attacked square to the left of the pawn (from the pawn's perspective)
+    // right_square - attacked square to the right of the pawn (from the pawn's perspective)
+    // attacked_rank_index - how many times a 0b11111111 mask has to be shifted
+    //      left by 8 to completely cover the bits of the rank attacked by the pawn
+    // opponent_taken - bitboard that represents squares taken by the opposite color
+    // promotion_rank - rank on which the pawn is placed before it can promote in it's next move
+    let (left_square, right_square, attacked_rank_index, opponent_taken, promotion_rank) =
+        match piece_color {
+            piece::Color::White => {
+                let left = square::Square::from(square_index as u8 + 7);
+                let right = square::Square::from(square_index as u8 + 9);
+                let attacked_rank_index = pawn_rank.index() + 1;
+                (
+                    left,
+                    right,
+                    attacked_rank_index,
+                    black_taken,
+                    square::Rank::R7,
+                )
             }
-        },
-        piece::Color::Black => {
-            let mut attack_bitboard = bitboard::Bitboard::default();
-            let left = square::Square::from(square_index as u8 - 9);
-            let right = square::Square::from(square_index as u8 - 7);
-            attack_bitboard.set(left);
-            attack_bitboard.set(right);
-
-            // create a mask of 8 bits that covers the entire attacked rank
-            let mask = 0b11111111u64 << (8 * (pawn_rank.index() - 1));
-            let attacked_rank_mask = bitboard::Bitboard::from(mask);
-            
-            // make sure attacked squares are on the rank above the pawn and didn't 
-            // wrap around if the pawn was from file A or H
-            let attack_bitboard = attack_bitboard & attacked_rank_mask;
-            // only attack squares on which white pieces are placed
-            let attack_bitboard = attack_bitboard & *white_taken;
-
-            // moves that capture and promote
-            if pawn_rank == square::Rank::R2 {
-                for attacked_square in attack_bitboard.iter() {
-                    let mv = moves::Move::new(piece_square, attacked_square);
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Knight,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Bishop,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Queen,
-                    });
-                    moves.push(moves::UCIMove::Promotion {
-                        m: mv,
-                        k: piece::Kind::Rook,
-                    });
-                }
-            } else {
-                for attacked_square in attack_bitboard.iter() {
-                    let mv = moves::Move::new(piece_square, attacked_square);
-                    moves.push(moves::UCIMove::Regular { m: mv });
-                }
+            piece::Color::Black => {
+                let left = square::Square::from(square_index as u8 - 9);
+                let right = square::Square::from(square_index as u8 - 7);
+                let attacked_rank_index = pawn_rank.index() - 1;
+                (
+                    left,
+                    right,
+                    attacked_rank_index,
+                    white_taken,
+                    square::Rank::R2,
+                )
             }
+        };
+
+    let mut attack_bitboard = bitboard::Bitboard::default();
+    attack_bitboard.set(left_square);
+    attack_bitboard.set(right_square);
+
+    let mask = 0b11111111u64 << (8 * attacked_rank_index);
+    let attacked_rank_mask = bitboard::Bitboard::from(mask);
+
+    // in case the pawn was on A or H file, remove squares that got incorrectly
+    // set because of the wrap-around (more info in this function's docs)
+    let attack_bitboard = attack_bitboard & attacked_rank_mask;
+
+    // TODO: this is the place where en-passant square should be checked,
+    // because the next step erases info about squares that are attacked
+    // but don't have an enemy piece on them (and since the pawn attacked during
+    // en-passant is not attacked directly, the information will be lost)
+    let actually_attacked_squares = attack_bitboard & *opponent_taken;
+
+    // moves that not only can capture, but also promote at the same time
+    if pawn_rank == promotion_rank {
+        for attacked_square in actually_attacked_squares.iter() {
+            let mv = moves::Move::new(piece_square, attacked_square);
+            moves.push(moves::UCIMove::Promotion {
+                m: mv,
+                k: piece::Kind::Knight,
+            });
+            moves.push(moves::UCIMove::Promotion {
+                m: mv,
+                k: piece::Kind::Bishop,
+            });
+            moves.push(moves::UCIMove::Promotion {
+                m: mv,
+                k: piece::Kind::Queen,
+            });
+            moves.push(moves::UCIMove::Promotion {
+                m: mv,
+                k: piece::Kind::Rook,
+            });
+        }
+    } else {
+        for attacked_square in actually_attacked_squares.iter() {
+            let mv = moves::Move::new(piece_square, attacked_square);
+            moves.push(moves::UCIMove::Regular { m: mv });
         }
     }
+
     moves
 }
 
@@ -418,7 +413,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn pawn_black_on_promotion_square_has_noncapturing_promotion_moves() {
         let board = board::Board::try_from("8/7k/8/8/8/8/1p6/6K1").unwrap();
@@ -448,7 +442,7 @@ mod tests {
             assert!(expected_set.contains(found_move));
         }
     }
-    
+
     #[test]
     fn pawn_black_on_promotion_square_has_capturing_promotion_moves() {
         let board = board::Board::try_from("7k/8/8/8/8/8/7p/1K4NB").unwrap();
