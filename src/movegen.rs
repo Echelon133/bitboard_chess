@@ -270,102 +270,77 @@ mod tests {
             .collect()
     }
 
+    macro_rules! check_pawn {
+        ($square:literal on $board:ident having $context:ident can be moved to $targets:ident) => {
+            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_pawn_moves(
+                square,
+                white_taken,
+                black_taken,
+                $context,
+            );
+            assert_eq!(found_moves.len(), $targets.len());
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
+            for target in expected_targets {
+                assert!(targets.contains(&target));
+            }
+        };
+        ($square:literal on $board:ident having $context:ident cannot be moved) => {
+            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_pawn_moves(
+                square,
+                white_taken,
+                black_taken,
+                $context,
+            );
+            assert_eq!(found_moves.len(), 0);
+        }
+    }
+
     #[test]
     fn pawn_unmoved_has_two_moves_when_not_blocked() {
-        let board = board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a2").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["a3", "a4"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap();
+        let context = &context::Context::default();
+        let squares = &["a3", "a4"];
+        check_pawn!("a2" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_unmoved_has_correct_number_of_moves_when_blocked() {
         // pawn on a2 blocked by other piece on a4 has 1 move
-        let board = board::Board::try_from("rnbqkbnr/pppppppp/8/8/n7/8/PPPPPPPP/RNBQKBNR").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a2").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 1);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["a3"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = 
+            &board::Board::try_from("rnbqkbnr/pppppppp/8/8/n7/8/PPPPPPPP/RNBQKBNR").unwrap();
+        let context = &context::Context::default();
+        let squares = &["a3"];
+        check_pawn!("a2" on board having context can be moved to squares);
 
         // pawn on a2 blocked by other piece on a3 has 0 moves
-        let board = board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/n7/PPPPPPPP/RNBQKBNR").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a2").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+        let board = 
+            &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/n7/PPPPPPPP/RNBQKBNR").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("a2" on board having context cannot be moved);
     }
 
     #[test]
     fn pawn_already_moved_can_only_move_one_forward() {
         // pawn has already made it's first move before
         let board =
-            board::Board::try_from("rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("e4").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 1);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["e5"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+            &board::Board::try_from("rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR").unwrap();
+        let context = &context::Context::default();
+        let squares = &["e5"];
+        check_pawn!("e4" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_already_moved_has_no_moves_when_blocked() {
         // pawn has already made it's first move before
         let board =
-            board::Board::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("e4").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+            &board::Board::try_from("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("e4" on board having context cannot be moved);
     }
 
     #[test]
@@ -490,283 +465,113 @@ mod tests {
 
     #[test]
     fn pawn_white_can_attack_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/8/8/1n1n4/2P5/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("c3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 3);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["b4", "c4", "d4"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/8/8/1n1n4/2P5/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b4", "c4", "d4"];
+        check_pawn!("c3" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_white_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/8/8/1R1R4/2P5/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("c3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 1);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["c4"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/8/8/1R1R4/2P5/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["c4"];
+        check_pawn!("c3" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_white_on_file_a_attacks_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/8/8/1p6/P6p/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["b4", "a4"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/8/8/1p6/P6p/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b4", "a4"];
+        check_pawn!("a3" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_white_on_file_a_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/8/8/RP6/P6p/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+        let board = &board::Board::try_from("8/7k/8/8/RP6/P6p/8/6K1").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("a3" on board having context cannot be moved);
     }
 
     #[test]
     fn pawn_white_on_file_h_attacks_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/8/p7/6p1/7P/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("h3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["g4", "h4"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/8/p7/6p1/7P/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["g4", "h4"];
+        check_pawn!("h3" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_white_on_file_h_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/8/p7/6PR/7P/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("h3").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+        let board = &board::Board::try_from("8/7k/8/p7/6PR/7P/8/6K1").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("h3" on board having context cannot be moved);
     }
 
     #[test]
     fn pawn_black_can_attack_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/3p4/2N1N3/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("d6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 3);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["c5", "d5", "e5"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/3p4/2N1N3/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["c5", "d5", "e5"];
+        check_pawn!("d6" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_black_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/3p4/2n1n3/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("d6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 1);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["d5"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/3p4/2n1n3/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["d5"];
+        check_pawn!("d6" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_black_on_file_a_attacks_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/p7/1P6/7P/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["b5", "a5"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/p7/1P6/7P/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["b5", "a5"];
+        check_pawn!("a6" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_black_on_file_a_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/p7/np6/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("a6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+        let board = &board::Board::try_from("8/7k/p7/np6/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("a6" on board having context cannot be moved);
     }
 
     #[test]
     fn pawn_black_on_file_h_attacks_enemy_pieces() {
-        let board = board::Board::try_from("8/7k/P6p/6P1/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("h6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["g5", "h5"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let board = &board::Board::try_from("8/7k/P6p/6P1/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        let squares = &["g5", "h5"];
+        check_pawn!("h6" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_black_on_file_h_cannot_attack_own_pieces() {
-        let board = board::Board::try_from("8/7k/7p/6pr/8/8/8/6K1").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("h6").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context::Context::default(),
-        );
-
-        assert_eq!(found_moves.len(), 0);
+        let board = &board::Board::try_from("8/7k/7p/6pr/8/8/8/6K1").unwrap();
+        let context = &context::Context::default();
+        check_pawn!("h6" on board having context cannot be moved);
     }
 
     #[test]
     fn pawn_white_can_capture_enpassant() {
         let board = 
-            board::Board::try_from("rnbqkbnr/ppp1p1pp/3p4/4Pp2/8/8/PPPP1PPP/RNBQKBNR").unwrap();
-
+            &board::Board::try_from("rnbqkbnr/ppp1p1pp/3p4/4Pp2/8/8/PPPP1PPP/RNBQKBNR").unwrap();
         // en-passant possible on the f6 square
-        let context = context::Context::try_from("w KQkq f6 0 3").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("e5").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context,
-        );
-
-        assert_eq!(found_moves.len(), 3);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["d6", "e6", "f6"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let context = &context::Context::try_from("w KQkq f6 0 3").unwrap();
+        let squares = &["d6", "e6", "f6"];
+        check_pawn!("e5" on board having context can be moved to squares);
     }
 
     #[test]
     fn pawn_black_can_capture_enpassant() {
         let board = 
-            board::Board::try_from("rnbqkbnr/pp1ppppp/8/4P3/2pP4/8/PPP2PPP/RNBQKBNR").unwrap();
-
+            &board::Board::try_from("rnbqkbnr/pp1ppppp/8/4P3/2pP4/8/PPP2PPP/RNBQKBNR").unwrap();
         // en-passant possible on the d3 square
-        let context = context::Context::try_from("w KQkq d3 0 3").unwrap();
-        let (white_taken, black_taken) = extract_squares_taken(&board);
-
-        let square = square::Square::try_from("c4").unwrap();
-        let found_moves = find_pawn_moves(
-            square,
-            white_taken,
-            black_taken,
-            &context,
-        );
-
-        assert_eq!(found_moves.len(), 2);
-        let targets = extract_targets(&found_moves);
-        let expected_targets = notation_to_squares(&["c3", "d3"]);
-        for target in expected_targets {
-            assert!(targets.contains(&target));
-        }
+        let context = &context::Context::try_from("w KQkq d3 0 3").unwrap();
+        let squares = &["c3", "d3"];
+        check_pawn!("c4" on board having context can be moved to squares);
     }
 }
