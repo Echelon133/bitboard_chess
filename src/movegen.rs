@@ -355,7 +355,6 @@ mod tests {
     use crate::bitboard;
     use crate::board;
     use crate::context;
-    use crate::movegen::*;
     use crate::moves;
     use crate::piece;
     use crate::square;
