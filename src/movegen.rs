@@ -224,6 +224,87 @@ fn find_pawn_moves(
     moves
 }
 
+/// Finds all pseudo-legal moves for the knight on the given square.
+/// This function assumes that a piece that is placed on the given
+/// square is actually a knight and does not check whether that's true.
+///
+/// Since [`square::Square`] holds the index of the square on the board
+/// (growing left-to-right, bottom-to-top), it's possible to calculate
+/// indexes of squares relative to the square where the knight is:
+///
+/// For both colors:
+/// -  -  -  -  -  -  -  -
+/// -  - +15 - +17 -  -  -
+/// - +6  -  -  - +10 -  -
+/// -  -  -  k  -  -  -  -
+/// - -10 -  -  - -6  -  -
+/// -  - -17 - -15 -  -  -
+/// -  -  -  -  -  -  -  -
+///
+fn find_knight_moves(
+    piece_square: square::Square,
+    white_taken: &bitboard::Bitboard,
+    black_taken: &bitboard::Bitboard,
+) -> Vec<moves::UCIMove> {
+    let mut moves = Vec::with_capacity(4);
+
+    let knight_file = piece_square.get_file();
+
+    // the invariant: piece_square must be a square that's set to 1 either
+    // for white_taken or black_taken, so if it's set for white_taken, then it should be
+    // impossible for it to be set to 1 for black_taken
+    let own_pieces = match white_taken.is_set(piece_square) {
+        true => white_taken,
+        false => black_taken,
+    };
+
+    let knight_index = piece_square.get_index() as i8;
+
+    let mut attack_bitboard = bitboard::Bitboard::default();
+
+    let diff: [i8; 8] = [-17, -15, -6, -10, 6, 10, 15, 17];
+    for d in diff {
+        let index = knight_index + d;
+        // knights on 1st, 2nd, 7th and 8th rank cannot attack certain squares
+        // because their indexes overflow/underflow the 0..=63 range
+        if !(index > 63 || index < 0) {
+            let square = square::Square::from(index as u8);
+            attack_bitboard.set(square);
+        }
+    }
+
+    // if knight is on A or B file, some squares attacked on the left got thrown
+    // to the other side of the board, so they need to be removed using a bitmask
+    let knight_on_ab_file = (knight_file == square::File::A) || (knight_file == square::File::B);
+    // if knight is on G or H file, some squares attacked on the right got thrown
+    // to the other side of the board, so they need to be moreved using a bitmask
+    let knight_on_gh_file = (knight_file == square::File::G) || (knight_file == square::File::H);
+
+    if knight_on_ab_file {
+        // remove anything from G and H files
+        let hide_gh: u64 = 0b0011111100111111001111110011111100111111001111110011111100111111;
+        let hide_gh = bitboard::Bitboard::from(hide_gh);
+        attack_bitboard = attack_bitboard & hide_gh;
+    } else if knight_on_gh_file {
+        // remove anything from A and B files
+        let hide_ab: u64 = 0b1111110011111100111111001111110011111100111111001111110011111100;
+        let hide_ab = bitboard::Bitboard::from(hide_ab);
+        attack_bitboard = attack_bitboard & hide_ab;
+    }
+
+    // only attack squares where there is no pieces the same color as the knight
+    let attack_bitboard = attack_bitboard & (!(*own_pieces));
+
+    println!("Final attack bitboard: \n{:?}", attack_bitboard);
+
+    for attacked_square in attack_bitboard.iter() {
+        let mv = moves::Move::new(piece_square, attacked_square);
+        moves.push(moves::UCIMove::Regular { m: mv });
+    }
+
+    moves
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
