@@ -317,6 +317,26 @@ mod tests {
         };
     }
 
+    macro_rules! check_knight {
+        ($square:literal on $board:ident can be moved to $targets:ident) => {
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_knight_moves(square, white, black);
+            assert_eq!(found_moves.len(), $targets.len());
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let expected_targets = notation_to_squares($targets);
+            for target in expected_targets {
+                assert!(targets.contains(&target));
+            }
+        };
+        ($square:literal on $board:ident cannot be moved) => {
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_knight_moves(square, white, black);
+            assert_eq!(found_moves.len(), 0);
+        };
+    }
+
     #[test]
     fn pawn_unmoved_has_two_moves_when_not_blocked() {
         let board = &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap();
@@ -505,62 +525,172 @@ mod tests {
     }
 
     #[test]
-    fn knight_white_on_edges_attacks_two_enemy_squares() {
-        assert!(false);
+    fn knight_on_edges_attacks_two_enemy_squares() {
+        // correct for both black and white
+        let squares_a1 = &["b3", "c2"];
+        let squares_h1 = &["g3", "f2"];
+        let squares_a8 = &["b6", "c7"];
+        let squares_h8 = &["f7", "g6"];
+
+        // white knights
+        let white_board = &board::Board::try_from("N6N/8/8/8/8/8/8/N6N").unwrap();
+        check_knight!("a1" on white_board can be moved to squares_a1);
+        check_knight!("h1" on white_board can be moved to squares_h1);
+        check_knight!("a8" on white_board can be moved to squares_a8);
+        check_knight!("h8" on white_board can be moved to squares_h8);
+
+        // black knights
+        let black_board = &board::Board::try_from("n6n/8/8/8/8/8/8/n6n").unwrap();
+        check_knight!("a1" on black_board can be moved to squares_a1);
+        check_knight!("h1" on black_board can be moved to squares_h1);
+        check_knight!("a8" on black_board can be moved to squares_a8);
+        check_knight!("h8" on black_board can be moved to squares_h8);
     }
 
     #[test]
-    fn knight_white_on_edges_cannot_attack_two_own_squares() {
-        assert!(false)
+    fn knight_on_edges_cannot_attack_two_own_squares() {
+        let white_board = &board::Board::try_from("N6N/2B2B2/1B4B1/8/8/1B4B1/2B2B2/N6N").unwrap();
+        check_knight!("a1" on white_board cannot be moved);
+        check_knight!("h1" on white_board cannot be moved);
+        check_knight!("a8" on white_board cannot be moved);
+        check_knight!("h8" on white_board cannot be moved);
+
+        let black_board = &board::Board::try_from("n6n/2b2b2/1b4b1/8/8/1b4b1/2b2b2/n6n").unwrap();
+        check_knight!("a1" on black_board cannot be moved);
+        check_knight!("h1" on black_board cannot be moved);
+        check_knight!("a8" on black_board cannot be moved);
+        check_knight!("h8" on black_board cannot be moved);
     }
 
     #[test]
-    fn knight_black_on_edges_attacks_two_enemy_squares() {
-        assert!(false)
+    fn knight_near_edges_attacks_four_enemy_squares() {
+        // correct for both black and white
+        let squares_b2 = &["a4", "c4", "d3", "d1"];
+        let squares_b7 = &["a5", "c5", "d6", "d8"];
+        let squares_g2 = &["e1", "e3", "f4", "h4"];
+        let squares_g7 = &["e8", "e6", "f5", "h5"];
+
+        // white knights
+        let white_board = &board::Board::try_from("8/1N4N1/8/8/8/8/1N4N1/8").unwrap();
+        check_knight!("b2" on white_board can be moved to squares_b2);
+        check_knight!("b7" on white_board can be moved to squares_b7);
+        check_knight!("g2" on white_board can be moved to squares_g2);
+        check_knight!("g7" on white_board can be moved to squares_g7);
+
+        // black knights
+        let black_board = &board::Board::try_from("8/1n4n1/8/8/8/8/1n4n1/8").unwrap();
+        check_knight!("b2" on black_board can be moved to squares_b2);
+        check_knight!("b7" on black_board can be moved to squares_b7);
+        check_knight!("g2" on black_board can be moved to squares_g2);
+        check_knight!("g7" on black_board can be moved to squares_g7);
     }
 
     #[test]
-    fn knight_black_on_edges_cannot_attack_two_own_squares() {
-        assert!(false);
+    fn knight_near_edges_cannot_attack_four_own_squares() {
+        // white knights
+        let white_board =
+            &board::Board::try_from("3BB3/1N4N1/3BB3/B1B2B1B/B1B2B1B/3BB3/1N4N1/3BB3").unwrap();
+        check_knight!("b2" on white_board cannot be moved);
+        check_knight!("b7" on white_board cannot be moved);
+        check_knight!("g2" on white_board cannot be moved);
+        check_knight!("g7" on white_board cannot be moved);
+
+        // black knights
+        let black_board =
+            &board::Board::try_from("3bb3/1n4n1/3bb3/b1b2b1b/b1b2b1b/3bb3/1n4n1/3bb3").unwrap();
+        check_knight!("b2" on black_board cannot be moved);
+        check_knight!("b7" on black_board cannot be moved);
+        check_knight!("g2" on black_board cannot be moved);
+        check_knight!("g7" on black_board cannot be moved);
     }
 
     #[test]
-    fn knight_white_near_edges_attacks_four_enemy_squares() {
-        assert!(false);
+    fn knight_near_edges_attacks_six_enemy_squares() {
+        // common for both black and white
+        let squares_c2 = &["a1", "a3", "b4", "d4", "e3", "e1"];
+        let squares_c7 = &["a8", "a6", "b5", "d5", "e6", "e8"];
+        let squares_f2 = &["d1", "d3", "e4", "g4", "h1", "h3"];
+        let squares_f7 = &["d8", "d6", "e5", "g5", "h6", "h8"];
+
+        // white knight
+        let white_board = &board::Board::try_from("8/2N2N2/8/8/8/8/2N2N2/8").unwrap();
+        check_knight!("c2" on white_board can be moved to squares_c2);
+        check_knight!("c7" on white_board can be moved to squares_c7);
+        check_knight!("f2" on white_board can be moved to squares_f2);
+        check_knight!("f7" on white_board can be moved to squares_f7);
+
+        // black knight
+        let black_board = &board::Board::try_from("8/2n2n2/8/8/8/8/2n2n2/8").unwrap();
+        check_knight!("c2" on black_board can be moved to squares_c2);
+        check_knight!("c7" on black_board can be moved to squares_c7);
+        check_knight!("f2" on black_board can be moved to squares_f2);
+        check_knight!("f7" on black_board can be moved to squares_f7);
     }
 
     #[test]
-    fn knight_white_near_edges_cannot_attack_four_own_squares() {
-        assert!(false);
+    fn knight_near_edges_cannot_attack_six_own_squares() {
+        // white knight
+        let white_board =
+            &board::Board::try_from("R2RR2R/2N2N2/R2RR2R/1R1RR1R1/1R1RR1R1/R2RR2R/2N2N2/R2RR2R")
+                .unwrap();
+        check_knight!("c2" on white_board cannot be moved);
+        check_knight!("c7" on white_board cannot be moved);
+        check_knight!("f2" on white_board cannot be moved);
+        check_knight!("f7" on white_board cannot be moved);
+
+        // black knight
+        let black_board =
+            &board::Board::try_from("r2rr2r/2n2n2/r2rr2r/1r1rr1r1/1r1rr1r1/r2rr2r/2n2n2/r2rr2r")
+                .unwrap();
+        check_knight!("c2" on black_board cannot be moved);
+        check_knight!("c7" on black_board cannot be moved);
+        check_knight!("f2" on black_board cannot be moved);
+        check_knight!("f7" on black_board cannot be moved);
     }
 
     #[test]
-    fn knight_black_near_edges_attacks_four_enemy_squares() {
-        assert!(false);
+    fn knight_in_middle_attacks_eight_enemy_squares() {
+        // common for both black and white
+        let squares_c3 = &["a2", "a4", "b1", "b5", "d5", "d1", "e2", "e4"];
+        let squares_c6 = &["a5", "a7", "b4", "b8", "d4", "d8", "e5", "e7"];
+        let squares_f3 = &["d2", "d4", "e1", "e5", "g1", "g5", "h2", "h4"];
+        let squares_f6 = &["d5", "d7", "e4", "e8", "g4", "g8", "h5", "h7"];
+
+        // white knights
+        let white_board = &board::Board::try_from("8/8/2N2N2/8/8/2N2N2/8/8").unwrap();
+        check_knight!("c3" on white_board can be moved to squares_c3);
+        check_knight!("c6" on white_board can be moved to squares_c6);
+        check_knight!("f3" on white_board can be moved to squares_f3);
+        check_knight!("f6" on white_board can be moved to squares_f6);
+
+        // black knights
+        let black_board = &board::Board::try_from("8/8/2n2n2/8/8/2n2n2/8/8").unwrap();
+        check_knight!("c3" on black_board can be moved to squares_c3);
+        check_knight!("c6" on black_board can be moved to squares_c6);
+        check_knight!("f3" on black_board can be moved to squares_f3);
+        check_knight!("f6" on black_board can be moved to squares_f6);
     }
 
     #[test]
-    fn knight_black_near_edges_cannot_attack_four_own_squares() {
-        assert!(false);
-    }
+    fn knight_in_middle_cannot_attack_eight_own_squares() {
+        // white knights
+        let white_board = &board::Board::try_from(
+            "1R1RR1R1/R2RR2R/2N2N2/RR1RR1RR/RR1RR1RR/2N2N2/R2RR2R/1R1RR1R1",
+        )
+        .unwrap();
+        check_knight!("c3" on white_board cannot be moved);
+        check_knight!("c6" on white_board cannot be moved);
+        check_knight!("f3" on white_board cannot be moved);
+        check_knight!("f6" on white_board cannot be moved);
 
-    #[test]
-    fn knight_white_in_middle_attacks_eight_enemy_squares() {
-        assert!(false);
-    }
-
-    #[test]
-    fn knight_white_in_middle_cannot_attack_eight_own_squares() {
-        assert!(false);
-    }
-
-    #[test]
-    fn knight_black_in_middle_attacks_eight_enemy_squares() {
-        assert!(false);
-    }
-
-    #[test]
-    fn knight_black_in_middle_cannot_attack_eight_own_squares() {
-        assert!(false);
+        // black knights
+        let black_board = &board::Board::try_from(
+            "1r1rr1r1/r2rr2r/2n2n2/rr1rr1rr/rr1rr1rr/2n2n2/r2rr2r/1r1rr1r1",
+        )
+        .unwrap();
+        check_knight!("c3" on black_board cannot be moved);
+        check_knight!("c6" on black_board cannot be moved);
+        check_knight!("f3" on black_board cannot be moved);
+        check_knight!("f6" on black_board cannot be moved);
     }
 }
