@@ -224,22 +224,99 @@ fn find_pawn_moves(
     moves
 }
 
+/// Precalculated attack patterns for knights (for each one of 64 squares).
+/// Each square has a 64 bit number in which set bits represent which
+/// squares are attacked by a knight from that square.
+/// Since there is no differences between how white or black knights
+/// operate, these attack patterns are universal.
+///
+/// Patterns are ordered left-to-right, bottom-to-top (from white's perspective).
+/// This means that:
+/// - pattern for a knight on "a1" has index 0
+/// - pattern for a knight on "b2" has index 1
+/// - pattern for a knight on "h8" has index 63
+///
+static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
+    0x20400,
+    0x50800,
+    0xa1100,
+    0x142200,
+    0x284400,
+    0x508800,
+    0xa01000,
+    0x402000,
+    0x2040004,
+    0x5080008,
+    0xa110011,
+    0x14220022,
+    0x28440044,
+    0x50880088,
+    0xa0100010,
+    0x40200020,
+    0x204000402,
+    0x508000805,
+    0xa1100110a,
+    0x1422002214,
+    0x2844004428,
+    0x5088008850,
+    0xa0100010a0,
+    0x4020002040,
+    0x20400040200,
+    0x50800080500,
+    0xa1100110a00,
+    0x142200221400,
+    0x284400442800,
+    0x508800885000,
+    0xa0100010a000,
+    0x402000204000,
+    0x2040004020000,
+    0x5080008050000,
+    0xa1100110a0000,
+    0x14220022140000,
+    0x28440044280000,
+    0x50880088500000,
+    0xa0100010a00000,
+    0x40200020400000,
+    0x204000402000000,
+    0x508000805000000,
+    0xa1100110a000000,
+    0x1422002214000000,
+    0x2844004428000000,
+    0x5088008850000000,
+    0xa0100010a0000000,
+    0x4020002040000000,
+    0x400040200000000,
+    0x800080500000000,
+    0x1100110a00000000,
+    0x2200221400000000,
+    0x4400442800000000,
+    0x8800885000000000,
+    0x100010a000000000,
+    0x2000204000000000,
+    0x4020000000000,
+    0x8050000000000,
+    0x110a0000000000,
+    0x22140000000000,
+    0x44280000000000,
+    0x88500000000000,
+    0x10a00000000000,
+    0x20400000000000,
+];
+
 /// Finds all pseudo-legal moves for the knight on the given square.
 /// This function assumes that a piece that is placed on the given
 /// square is actually a knight and does not check whether that's true.
 ///
-/// Since [`square::Square`] holds the index of the square on the board
-/// (growing left-to-right, bottom-to-top), it's possible to calculate
-/// indexes of squares relative to the square where the knight is:
+/// This implementation uses precalculated attack patterns, so that
+/// instead of calculating them on-the-fly every call, they can
+/// simply be accessed using the square's index (which is consistent
+/// with the order of attack patterns in KNIGHT_ATTACK_PATTERNS).
 ///
-/// For both colors:
-/// -  -  -  -  -  -  -  -
-/// -  - +15 - +17 -  -  -
-/// - +6  -  -  - +10 -  -
-/// -  -  -  k  -  -  -  -
-/// - -10 -  -  - -6  -  -
-/// -  - -17 - -15 -  -  -
-/// -  -  -  -  -  -  -  -
+/// The only thing that needs to be done once there is an attack pattern
+/// ready, is to bitwise AND that attack pattern with bitwise NOT of pieces that
+/// have the same color as the knight for which we calculate moves.
+/// That operations only leaves those bits on the attack pattern that represent
+/// either empty squares or squares of the opponent.
 ///
 fn find_knight_moves(
     piece_square: square::Square,
@@ -248,54 +325,20 @@ fn find_knight_moves(
 ) -> Vec<moves::UCIMove> {
     let mut moves = Vec::with_capacity(4);
 
-    let knight_file = piece_square.get_file();
-
     // the invariant: piece_square must be a square that's set to 1 either
     // for white_taken or black_taken, so if it's set for white_taken, then it should be
     // impossible for it to be set to 1 for black_taken
     let own_pieces = match white_taken.is_set(piece_square) {
-        true => white_taken,
-        false => black_taken,
+        true => *white_taken,
+        false => *black_taken,
     };
 
-    let knight_index = piece_square.get_index() as i8;
-
-    let mut attack_bitboard = bitboard::Bitboard::default();
-
-    let diff: [i8; 8] = [-17, -15, -6, -10, 6, 10, 15, 17];
-    for d in diff {
-        let index = knight_index + d;
-        // knights on 1st, 2nd, 7th and 8th rank cannot attack certain squares
-        // because their indexes overflow/underflow the 0..=63 range
-        if !(index > 63 || index < 0) {
-            let square = square::Square::from(index as u8);
-            attack_bitboard.set(square);
-        }
-    }
-
-    // if knight is on A or B file, some squares attacked on the left got thrown
-    // to the other side of the board, so they need to be removed using a bitmask
-    let knight_on_ab_file = (knight_file == square::File::A) || (knight_file == square::File::B);
-    // if knight is on G or H file, some squares attacked on the right got thrown
-    // to the other side of the board, so they need to be moreved using a bitmask
-    let knight_on_gh_file = (knight_file == square::File::G) || (knight_file == square::File::H);
-
-    if knight_on_ab_file {
-        // remove anything from G and H files
-        let hide_gh: u64 = 0b0011111100111111001111110011111100111111001111110011111100111111;
-        let hide_gh = bitboard::Bitboard::from(hide_gh);
-        attack_bitboard = attack_bitboard & hide_gh;
-    } else if knight_on_gh_file {
-        // remove anything from A and B files
-        let hide_ab: u64 = 0b1111110011111100111111001111110011111100111111001111110011111100;
-        let hide_ab = bitboard::Bitboard::from(hide_ab);
-        attack_bitboard = attack_bitboard & hide_ab;
-    }
-
-    // only attack squares where there is no pieces the same color as the knight
-    let attack_bitboard = attack_bitboard & (!(*own_pieces));
-
-    println!("Final attack bitboard: \n{:?}", attack_bitboard);
+    // retrieve a precalculated knight attack pattern and make a bitboard using
+    // all bits of that pattern
+    let index = piece_square.get_index();
+    let attack_bitboard = bitboard::Bitboard::from(KNIGHT_ATTACK_PATTERNS[index]);
+    // only attack squares where there are no pieces the same color as the knight
+    let attack_bitboard = attack_bitboard & (!own_pieces);
 
     for attacked_square in attack_bitboard.iter() {
         let mv = moves::Move::new(piece_square, attacked_square);
