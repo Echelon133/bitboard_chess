@@ -233,7 +233,7 @@ fn find_pawn_moves(
 /// Patterns are ordered left-to-right, bottom-to-top (from white's perspective).
 /// This means that:
 /// - pattern for a knight on "a1" has index 0
-/// - pattern for a knight on "b2" has index 1
+/// - pattern for a knight on "b1" has index 1
 /// - pattern for a knight on "h8" has index 63
 ///
 static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
