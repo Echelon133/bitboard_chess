@@ -460,6 +460,43 @@ mod tests {
         };
     }
 
+    macro_rules! check_king {
+        (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
+            // in this case, context should by default not allow any castling
+            let context = $crate::context::Context::try_from("w - - 0 1").unwrap();
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves =
+                $crate::movegen::find_king_moves(square, $color, white, black, &context);
+            assert_eq!(found_moves.len(), $num);
+
+            // get (file, rank) indexes of the king's square
+            let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
+            let (file_i, rank_i) = (file_i as i8, rank_i as i8);
+
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+
+            // calculate differences between (file, rank) indexes of the king's square
+            // and (file, rank) indexes of all squares that find_king_moves has found
+            for target_sq in targets {
+                let t_file_i = target_sq.get_file().index() as i8;
+                let t_rank_i = target_sq.get_rank().index() as i8;
+
+                // calculate absolute value of the difference between king's (file, rank) pair
+                // and target square (file, rank) pair
+                let (diff_file, diff_rank) = (file_i - t_file_i, rank_i - t_rank_i);
+                let (diff_file, diff_rank) = (diff_file.abs(), diff_rank.abs());
+
+                // sum of these differences should either be 1 or 2
+                let sum_diff = diff_file + diff_rank;
+                assert!(sum_diff == 1 || sum_diff == 2);
+                // file diff and rank diff can be either 1 or 0
+                assert!(diff_file == 0 || diff_file == 1);
+                assert!(diff_rank == 0 || diff_rank == 1);
+            }
+        };
+    }
+
     #[test]
     fn pawn_unmoved_has_two_moves_when_not_blocked() {
         let board = &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap();
@@ -815,5 +852,155 @@ mod tests {
         check_knight!("c6" on black_board cannot be moved);
         check_knight!("f3" on black_board cannot be moved);
         check_knight!("f6" on black_board cannot be moved);
+    }
+
+    #[test]
+    fn king_all_three_square_attacks_work() {
+        // only places on the board where kings attack only 3 squares
+        // are the corners of the board
+
+        let board = &board::Board::try_from("K6K/8/8/8/8/8/8/K6K").unwrap();
+        let white = piece::Color::White;
+        for king in ["a1", "a8", "h1", "h8"] {
+            check_king!(number of correct moves of white king on board is 3);
+        }
+    }
+
+    #[test]
+    fn king_all_three_square_attacks_blocked() {
+        // only places on the board where kings attack only 3 squares
+        // are the corners of the board
+
+        let board = &board::Board::try_from("KN4NK/NN4NN/8/8/8/8/NN4NN/KN4NK").unwrap();
+        let white = piece::Color::White;
+        for blocked_king in ["a1", "a8", "h1", "h8"] {
+            check_king!(number of correct moves of white blocked_king on board is 0);
+        }
+    }
+
+    #[test]
+    fn king_all_five_square_attacks_work() {
+        // places where kings attack exactly 5 squares:
+        // - files b-g on the 1st rank
+        // - files b-g on the 8th rank
+        // - ranks 2-7 on the a file,
+        // - ranks 2-7 on the h file,
+
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // crate all squares from which kings attack exactly 5 squares
+        let mut all_squares = vec![];
+
+        // variant 1
+        for file in 'b'..='g' {
+            for rank in ['1', '8'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        // variant 2
+        for rank in '2'..='7' {
+            for file in ['a', 'h'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for king in all_squares {
+            let king = king.as_str();
+            check_king!(number of correct moves of white king on board is 5);
+        }
+    }
+
+    #[test]
+    fn king_all_five_square_attacks_blocked() {
+        // places where kings attack exactly 5 squares:
+        // - files b-g on the 1st rank
+        // - files b-g on the 8th rank
+        // - ranks 2-7 on the a file,
+        // - ranks 2-7 on the h file,
+
+        let board = &board::Board::try_from(
+            "RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR",
+        )
+        .unwrap();
+
+        // crate all squares from which kings attack exactly 5 squares
+        let mut all_squares = vec![];
+
+        // variant 1
+        for file in 'b'..='g' {
+            for rank in ['1', '8'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        // variant 2
+        for rank in '2'..='7' {
+            for file in ['a', 'h'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for blocked_king in all_squares {
+            let blocked_king = blocked_king.as_str();
+            check_king!(number of correct moves of white blocked_king on board is 0);
+        }
+    }
+
+    #[test]
+    fn king_all_eight_square_attacks_work() {
+        // places where kings attack exactly 8 squares:
+        // - ranks b-h and files 2-7
+
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // crate all squares from which kings attack exactly 8 squares
+        let mut all_squares = vec![];
+
+        for file in 'b'..='g' {
+            for rank in '2'..='7' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for king in all_squares {
+            let king = king.as_str();
+            check_king!(number of correct moves of white king on board is 8);
+        }
+    }
+
+    #[test]
+    fn king_all_eight_square_attacks_blocked() {
+        // places where kings attack exactly 8 squares:
+        // - ranks b-h and files 2-7
+
+        let board = &board::Board::try_from(
+            "RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR",
+        )
+        .unwrap();
+
+        // crate all squares from which kings attack exactly 8 squares
+        let mut all_squares = vec![];
+
+        for file in 'b'..='g' {
+            for rank in '2'..='7' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for blocked_king in all_squares {
+            let blocked_king = blocked_king.as_str();
+            check_king!(number of correct moves of white blocked_king on board is 0);
+        }
     }
 }
