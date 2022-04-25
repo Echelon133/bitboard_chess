@@ -348,6 +348,154 @@ fn find_knight_moves(
     moves
 }
 
+/// Precalculated attack patterns for kings (for each one of 64 squares).
+/// Each square has a 64 bit number in which set bits represent which
+/// squares are attacked by a knight from that square.
+///
+/// Patterns are ordered left-to-right, bottom-to-top (from white's perspective).
+/// This means that:
+/// - pattern for a king on "a1" has index 0
+/// - pattern for a king on "b1" has index 1
+/// - pattern for a king on "h8" has index 63
+///
+static KING_ATTACK_PATTERNS: [u64; 64] = [
+    0x302,
+    0x705,
+    0xe0a,
+    0x1c14,
+    0x3828,
+    0x7050,
+    0xe0a0,
+    0xc040,
+    0x30203,
+    0x70507,
+    0xe0a0e,
+    0x1c141c,
+    0x382838,
+    0x705070,
+    0xe0a0e0,
+    0xc040c0,
+    0x3020300,
+    0x7050700,
+    0xe0a0e00,
+    0x1c141c00,
+    0x38283800,
+    0x70507000,
+    0xe0a0e000,
+    0xc040c000,
+    0x302030000,
+    0x705070000,
+    0xe0a0e0000,
+    0x1c141c0000,
+    0x3828380000,
+    0x7050700000,
+    0xe0a0e00000,
+    0xc040c00000,
+    0x30203000000,
+    0x70507000000,
+    0xe0a0e000000,
+    0x1c141c000000,
+    0x382838000000,
+    0x705070000000,
+    0xe0a0e0000000,
+    0xc040c0000000,
+    0x3020300000000,
+    0x7050700000000,
+    0xe0a0e00000000,
+    0x1c141c00000000,
+    0x38283800000000,
+    0x70507000000000,
+    0xe0a0e000000000,
+    0xc040c000000000,
+    0x302030000000000,
+    0x705070000000000,
+    0xe0a0e0000000000,
+    0x1c141c0000000000,
+    0x3828380000000000,
+    0x7050700000000000,
+    0xe0a0e00000000000,
+    0xc040c00000000000,
+    0x203000000000000,
+    0x507000000000000,
+    0xa0e000000000000,
+    0x141c000000000000,
+    0x2838000000000000,
+    0x5070000000000000,
+    0xa0e0000000000000,
+    0x40c0000000000000,
+];
+
+/// Finds all pseudo-legal moves for the king on the given square.
+/// This function assumes that a piece that is placed on the given square
+/// is actually a king and does not check whether that's true.
+///
+/// This implementation uses precalculated attack patterns, so that
+/// instead of calculating them on-the-fly every call, they can
+/// simply be accessed using the square's index (which is consistent
+/// with the order of attack patterns in KING_ATTACK_PATTERNS).
+///
+fn find_king_moves(
+    piece_square: square::Square,
+    own_color: piece::Color,
+    white_taken: &bitboard::Bitboard,
+    black_taken: &bitboard::Bitboard,
+    context: &context::Context,
+) -> Vec<moves::UCIMove> {
+    let mut moves = Vec::with_capacity(4);
+
+    let own_pieces = match own_color {
+        piece::Color::White => *white_taken,
+        piece::Color::Black => *black_taken,
+    };
+
+    let all_taken = *white_taken & *black_taken;
+
+    // retrieve a precalculated king attack pattern and make a bitboard using
+    // all bits of that pattern
+    let index = piece_square.get_index();
+    let attack_bitboard = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
+    // only attack squares where there are no pieces with the same color as the king
+    let attack_bitboard = attack_bitboard & (!own_pieces);
+
+    for attacked_square in attack_bitboard.iter() {
+        let mv = moves::Move::new(piece_square, attacked_square);
+        moves.push(moves::UCIMove::Regular { m: mv });
+    }
+
+    // if castling is available, then it means that the king
+    // is on its original square, therefore g1/g8 and c1/c8 target
+    // squares can be calculated by adding/subtracting
+    // 2 from the index of the king's square
+    if context.can_castle(own_color, context::Side::Kingside) {
+        // two squares between the king and the kingside rook need to be empty
+        // to make castling possible
+        let f_file_square = square::Square::from((index + 1) as u8);
+        let g_file_square = square::Square::from((index + 2) as u8);
+
+        if !all_taken.is_set(f_file_square) && !all_taken.is_set(g_file_square) {
+            let mv = moves::Move::new(piece_square, g_file_square);
+            moves.push(moves::UCIMove::Regular { m: mv });
+        }
+    }
+    if context.can_castle(own_color, context::Side::Queenside) {
+        // three squares between the king and the queenside rook need to be empty
+        // to make castling possible
+        let b_file_square = square::Square::from((index - 3) as u8);
+        let c_file_square = square::Square::from((index - 2) as u8);
+        let d_file_square = square::Square::from((index - 1) as u8);
+
+        if !all_taken.is_set(b_file_square)
+            && !all_taken.is_set(c_file_square)
+            && !all_taken.is_set(d_file_square)
+        {
+            let mv = moves::Move::new(piece_square, c_file_square);
+            moves.push(moves::UCIMove::Regular { m: mv });
+        }
+    }
+
+    moves
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -355,6 +503,7 @@ mod tests {
     use crate::bitboard;
     use crate::board;
     use crate::context;
+    use crate::movegen::*;
     use crate::moves;
     use crate::piece;
     use crate::square;
