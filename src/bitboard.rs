@@ -66,6 +66,22 @@ impl Bitboard {
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
     }
+
+    /// Returns the index of the least significant 1 bit.
+    ///
+    /// To get usable results the user should make sure that
+    /// the bitboard actually has any bits set.
+    pub fn bitscan_forward(&self) -> u8 {
+        u64::trailing_zeros(self.get_bits()) as u8
+    }
+
+    /// Returns the index of the most significant 1 bit.
+    ///
+    /// To get usable results the user should make sure that
+    /// the bitboard actually has any bits set.
+    pub fn bitscan_reverse(&self) -> u8 {
+        (u64::leading_zeros(self.get_bits()) as u8) ^ 63
+    }
 }
 
 impl From<u64> for Bitboard {
@@ -532,5 +548,33 @@ mod tests {
         // XOR of repeating ones (1111) and alternating ones (1010) should
         // result in alternating ones (0101)
         assert_eq!(xor_alternating.get_bits(), 0x5555_5555_5555_5555);
+    }
+
+    #[test]
+    fn bitboard_bitscan_forward_works() {
+        for square_index in 0..=63 {
+            let square = square::Square::from(square_index);
+            // set the most significant bit for every bitboard
+            // to make sure that the tested method returns 
+            // the index of the least sigificant bit that's set to 1
+            let mut bitboard = Bitboard::from(0x8000_0000_0000_0000);
+            bitboard.set(square);
+            let index_of_set_bit = bitboard.bitscan_forward();
+            assert_eq!(square_index, index_of_set_bit);
+        }
+    }
+
+    #[test]
+    fn bitboard_bitscan_reverse_works() {
+         for square_index in 0..=63 {
+            let square = square::Square::from(square_index);
+            // set the least significant bit for every bitboard
+            // to make sure that the tested method returns
+            // the index of the most significant bit that's set to 1
+            let mut bitboard = Bitboard::from(0b1);
+            bitboard.set(square);
+            let index_of_set_bit = bitboard.bitscan_reverse();
+            assert_eq!(square_index, index_of_set_bit);
+        }
     }
 }
