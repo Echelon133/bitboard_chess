@@ -448,7 +448,7 @@ fn find_king_moves(
         piece::Color::Black => *black_taken,
     };
 
-    let all_taken = *white_taken & *black_taken;
+    let all_taken = *white_taken | *black_taken;
 
     // retrieve a precalculated king attack pattern and make a bitboard using
     // all bits of that pattern
