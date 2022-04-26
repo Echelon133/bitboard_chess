@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{BitAnd, BitOr, Not, Shl, Shr},
+    ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr},
     u8,
 };
 
@@ -74,7 +74,7 @@ impl From<u64> for Bitboard {
     }
 }
 
-impl BitAnd<Bitboard> for Bitboard {
+impl BitAnd for Bitboard {
     type Output = Bitboard;
     /// Returns bitwise AND of the bits of two bitboards.
     fn bitand(self, rhs: Bitboard) -> Self::Output {
@@ -82,7 +82,7 @@ impl BitAnd<Bitboard> for Bitboard {
     }
 }
 
-impl BitOr<Self> for Bitboard {
+impl BitOr for Bitboard {
     type Output = Bitboard;
     /// Returns bitwise OR of the bits of two bitboards.
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -111,6 +111,15 @@ impl Not for Bitboard {
     /// Returns [`Bitboard`] with its bit negated.
     fn not(self) -> Self::Output {
         Bitboard::from(!self.get_bits())
+    }
+}
+
+impl BitXor for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits XORed
+    /// with another bitboard's bits.
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Bitboard::from(self.get_bits() ^ rhs.get_bits())
     }
 }
 
@@ -506,5 +515,22 @@ mod tests {
         bitboard = !bitboard;
 
         assert_eq!(bitboard.get_bits(), 0xFFFF_FFFF_FFFF_FFFF);
+    }
+
+    #[test]
+    fn bitboard_bitwise_xor_works() {
+        // all ones
+        let bitboard1 = Bitboard::from(0xFFFF_FFFF_FFFF_FFFF);
+
+        // 0b101010101010101010... pattern
+        let bitboard2 = Bitboard::from(0xAAAA_AAAA_AAAA_AAAA);
+
+        let xor_itself = bitboard1 ^ bitboard1;
+        let xor_alternating = bitboard1 ^ bitboard2;
+
+        assert_eq!(xor_itself.get_bits(), 0);
+        // XOR of repeating ones (1111) and alternating ones (1010) should
+        // result in alternating ones (0101)
+        assert_eq!(xor_alternating.get_bits(), 0x5555_5555_5555_5555);
     }
 }
