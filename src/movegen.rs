@@ -320,17 +320,15 @@ static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
 ///
 fn find_knight_moves(
     piece_square: square::Square,
+    color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
 ) -> Vec<moves::UCIMove> {
     let mut moves = Vec::with_capacity(4);
 
-    // the invariant: piece_square must be a square that's set to 1 either
-    // for white_taken or black_taken, so if it's set for white_taken, then it should be
-    // impossible for it to be set to 1 for black_taken
-    let own_pieces = match white_taken.is_set(piece_square) {
-        true => *white_taken,
-        false => *black_taken,
+    let own_pieces = match color {
+        piece::Color::White => *white_taken,
+        piece::Color::Black => *black_taken,
     };
 
     // retrieve a precalculated knight attack pattern and make a bitboard using
@@ -590,22 +588,35 @@ mod tests {
     }
 
     macro_rules! check_knight {
-        ($square:literal on $board:ident can be moved to $targets:ident) => {
+        (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
             let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_knight_moves(square, white, black);
-            assert_eq!(found_moves.len(), $targets.len());
+            let found_moves = $crate::movegen::find_knight_moves(square, $color, white, black);
+            assert_eq!(found_moves.len(), $num);
+
+            // get (file, rank) indexes of the knight's square
+            let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
+            let (file_i, rank_i) = (file_i as i8, rank_i as i8);
+
             let targets = $crate::movegen::tests::extract_targets(&found_moves);
-            let expected_targets = notation_to_squares($targets);
-            for target in expected_targets {
-                assert!(targets.contains(&target));
+
+            // calculate differences between (file, rank) indexes of the knight's square
+            // and (file, rank) indexes of all squares that find_knight_moves has found
+            for target_sq in targets {
+                let t_file_i = target_sq.get_file().index() as i8;
+                let t_rank_i = target_sq.get_rank().index() as i8;
+
+                // calculate absolute value of the difference between king's (file, rank) pair
+                // and target square (file, rank) pair
+                let (diff_file, diff_rank) = (file_i - t_file_i, rank_i - t_rank_i);
+                let (diff_file, diff_rank) = (diff_file.abs(), diff_rank.abs());
+
+                // sum of these differences should ALWAYS be 3
+                assert!(diff_file + diff_rank == 3);
+                // file diff and rank diff can be either 2 or 1
+                assert!(diff_file == 2 || diff_file == 1);
+                assert!(diff_rank == 2 || diff_rank == 1);
             }
-        };
-        ($square:literal on $board:ident cannot be moved) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
-            let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_knight_moves(square, white, black);
-            assert_eq!(found_moves.len(), 0);
         };
     }
 
@@ -870,173 +881,266 @@ mod tests {
     }
 
     #[test]
-    fn knight_on_edges_attacks_two_enemy_squares() {
-        // correct for both black and white
-        let squares_a1 = &["b3", "c2"];
-        let squares_h1 = &["g3", "f2"];
-        let squares_a8 = &["b6", "c7"];
-        let squares_h8 = &["f7", "g6"];
-
-        // white knights
-        let white_board = &board::Board::try_from("N6N/8/8/8/8/8/8/N6N").unwrap();
-        check_knight!("a1" on white_board can be moved to squares_a1);
-        check_knight!("h1" on white_board can be moved to squares_h1);
-        check_knight!("a8" on white_board can be moved to squares_a8);
-        check_knight!("h8" on white_board can be moved to squares_h8);
-
-        // black knights
-        let black_board = &board::Board::try_from("n6n/8/8/8/8/8/8/n6n").unwrap();
-        check_knight!("a1" on black_board can be moved to squares_a1);
-        check_knight!("h1" on black_board can be moved to squares_h1);
-        check_knight!("a8" on black_board can be moved to squares_a8);
-        check_knight!("h8" on black_board can be moved to squares_h8);
+    fn knight_all_two_square_attacks_work() {
+        // only places on the board where knights attack only 2 squares
+        // are the corners of the board
+        let board = &board::Board::try_from("N6N/8/8/8/8/8/8/N6N").unwrap();
+        let white = piece::Color::White;
+        for knight in ["a1", "a8", "h1", "h8"] {
+            check_king!(number of correct moves of white knight on board is 3);
+        }
     }
 
     #[test]
-    fn knight_on_edges_cannot_attack_two_own_squares() {
-        let white_board = &board::Board::try_from("N6N/2B2B2/1B4B1/8/8/1B4B1/2B2B2/N6N").unwrap();
-        check_knight!("a1" on white_board cannot be moved);
-        check_knight!("h1" on white_board cannot be moved);
-        check_knight!("a8" on white_board cannot be moved);
-        check_knight!("h8" on white_board cannot be moved);
-
-        let black_board = &board::Board::try_from("n6n/2b2b2/1b4b1/8/8/1b4b1/2b2b2/n6n").unwrap();
-        check_knight!("a1" on black_board cannot be moved);
-        check_knight!("h1" on black_board cannot be moved);
-        check_knight!("a8" on black_board cannot be moved);
-        check_knight!("h8" on black_board cannot be moved);
+    fn knight_all_two_square_attacks_blocked() {
+        // only places on the board where knights attack only 2 squares
+        // are the corners of the board
+        let board = &board::Board::try_from("N6N/2B2B2/1B4B1/8/8/1B4B1/2B2B2/N6N").unwrap();
+        let white = piece::Color::White;
+        for knight in ["a1", "a8", "h1", "h8"] {
+            check_knight!(number of correct moves of white knight on board is 0);
+        }
     }
 
     #[test]
-    fn knight_near_edges_attacks_four_enemy_squares() {
-        // correct for both black and white
-        let squares_b2 = &["a4", "c4", "d3", "d1"];
-        let squares_b7 = &["a5", "c5", "d6", "d8"];
-        let squares_g2 = &["e1", "e3", "f4", "h4"];
-        let squares_g7 = &["e8", "e6", "f5", "h5"];
-
-        // white knights
-        let white_board = &board::Board::try_from("8/1N4N1/8/8/8/8/1N4N1/8").unwrap();
-        check_knight!("b2" on white_board can be moved to squares_b2);
-        check_knight!("b7" on white_board can be moved to squares_b7);
-        check_knight!("g2" on white_board can be moved to squares_g2);
-        check_knight!("g7" on white_board can be moved to squares_g7);
-
-        // black knights
-        let black_board = &board::Board::try_from("8/1n4n1/8/8/8/8/1n4n1/8").unwrap();
-        check_knight!("b2" on black_board can be moved to squares_b2);
-        check_knight!("b7" on black_board can be moved to squares_b7);
-        check_knight!("g2" on black_board can be moved to squares_g2);
-        check_knight!("g7" on black_board can be moved to squares_g7);
+    fn knight_all_three_square_attacks_work() {
+        // squares with 3 attacks:
+        // a2, a7, b1, b8, g1, g8, h2, h7
+        let board = &board::Board::try_from("1n4n1/n6n/8/8/8/8/n6n/1n4n1").unwrap();
+        let black = piece::Color::Black;
+        for knight in ["a2", "a7", "b1", "b8", "g1", "g8", "h2", "h7"] {
+            check_knight!(number of correct moves of black knight on board is 3);
+        }
     }
 
     #[test]
-    fn knight_near_edges_cannot_attack_four_own_squares() {
-        // white knights
-        let white_board =
-            &board::Board::try_from("3BB3/1N4N1/3BB3/B1B2B1B/B1B2B1B/3BB3/1N4N1/3BB3").unwrap();
-        check_knight!("b2" on white_board cannot be moved);
-        check_knight!("b7" on white_board cannot be moved);
-        check_knight!("g2" on white_board cannot be moved);
-        check_knight!("g7" on white_board cannot be moved);
-
-        // black knights
-        let black_board =
-            &board::Board::try_from("3bb3/1n4n1/3bb3/b1b2b1b/b1b2b1b/3bb3/1n4n1/3bb3").unwrap();
-        check_knight!("b2" on black_board cannot be moved);
-        check_knight!("b7" on black_board cannot be moved);
-        check_knight!("g2" on black_board cannot be moved);
-        check_knight!("g7" on black_board cannot be moved);
-    }
-
-    #[test]
-    fn knight_near_edges_attacks_six_enemy_squares() {
-        // common for both black and white
-        let squares_c2 = &["a1", "a3", "b4", "d4", "e3", "e1"];
-        let squares_c7 = &["a8", "a6", "b5", "d5", "e6", "e8"];
-        let squares_f2 = &["d1", "d3", "e4", "g4", "h1", "h3"];
-        let squares_f7 = &["d8", "d6", "e5", "g5", "h6", "h8"];
-
-        // white knight
-        let white_board = &board::Board::try_from("8/2N2N2/8/8/8/8/2N2N2/8").unwrap();
-        check_knight!("c2" on white_board can be moved to squares_c2);
-        check_knight!("c7" on white_board can be moved to squares_c7);
-        check_knight!("f2" on white_board can be moved to squares_f2);
-        check_knight!("f7" on white_board can be moved to squares_f7);
-
-        // black knight
-        let black_board = &board::Board::try_from("8/2n2n2/8/8/8/8/2n2n2/8").unwrap();
-        check_knight!("c2" on black_board can be moved to squares_c2);
-        check_knight!("c7" on black_board can be moved to squares_c7);
-        check_knight!("f2" on black_board can be moved to squares_f2);
-        check_knight!("f7" on black_board can be moved to squares_f7);
-    }
-
-    #[test]
-    fn knight_near_edges_cannot_attack_six_own_squares() {
-        // white knight
-        let white_board =
-            &board::Board::try_from("R2RR2R/2N2N2/R2RR2R/1R1RR1R1/1R1RR1R1/R2RR2R/2N2N2/R2RR2R")
+    fn knight_all_three_square_attacks_blocked() {
+        // squares with 3 attacks:
+        // a2, a7, b1, b8, g1, g8, h2, h7
+        let board =
+            &board::Board::try_from("1np2pn1/n2pp2n/p1p2p1p/1p4p1/1p4p1/p1p2p1p/n2pp2n/1np2pn1")
                 .unwrap();
-        check_knight!("c2" on white_board cannot be moved);
-        check_knight!("c7" on white_board cannot be moved);
-        check_knight!("f2" on white_board cannot be moved);
-        check_knight!("f7" on white_board cannot be moved);
-
-        // black knight
-        let black_board =
-            &board::Board::try_from("r2rr2r/2n2n2/r2rr2r/1r1rr1r1/1r1rr1r1/r2rr2r/2n2n2/r2rr2r")
-                .unwrap();
-        check_knight!("c2" on black_board cannot be moved);
-        check_knight!("c7" on black_board cannot be moved);
-        check_knight!("f2" on black_board cannot be moved);
-        check_knight!("f7" on black_board cannot be moved);
+        let black = piece::Color::Black;
+        for knight in ["a2", "a7", "b1", "b8", "g1", "g8", "h2", "h7"] {
+            check_knight!(number of correct moves of black knight on board is 0);
+        }
     }
 
     #[test]
-    fn knight_in_middle_attacks_eight_enemy_squares() {
-        // common for both black and white
-        let squares_c3 = &["a2", "a4", "b1", "b5", "d5", "d1", "e2", "e4"];
-        let squares_c6 = &["a5", "a7", "b4", "b8", "d4", "d8", "e5", "e7"];
-        let squares_f3 = &["d2", "d4", "e1", "e5", "g1", "g5", "h2", "h4"];
-        let squares_f6 = &["d5", "d7", "e4", "e8", "g4", "g8", "h5", "h7"];
+    fn knight_all_four_square_attacks_work() {
+        // squares with 4 attacks:
+        // - file a, ranks 3-6
+        // - file h, ranks 3-6
+        // - rank 1, files c-f
+        // - rank 8, files c-f
+        // - b2, b7, g2, g7
 
-        // white knights
-        let white_board = &board::Board::try_from("8/8/2N2N2/8/8/2N2N2/8/8").unwrap();
-        check_knight!("c3" on white_board can be moved to squares_c3);
-        check_knight!("c6" on white_board can be moved to squares_c6);
-        check_knight!("f3" on white_board can be moved to squares_f3);
-        check_knight!("f6" on white_board can be moved to squares_f6);
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
 
-        // black knights
-        let black_board = &board::Board::try_from("8/8/2n2n2/8/8/2n2n2/8/8").unwrap();
-        check_knight!("c3" on black_board can be moved to squares_c3);
-        check_knight!("c6" on black_board can be moved to squares_c6);
-        check_knight!("f3" on black_board can be moved to squares_f3);
-        check_knight!("f6" on black_board can be moved to squares_f6);
+        // create all squares from which knights attack exactly 4 squares
+        let mut all_squares = vec!["b2", "b7", "g2", "g7"];
+        let mut all_squares: Vec<String> = all_squares
+            .iter_mut()
+            .map(|elem| elem.to_string())
+            .collect();
+        for file in ['a', 'h'] {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['1', '8'] {
+            for file in 'c'..='f' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let black = piece::Color::Black;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of black knight on board is 4);
+        }
     }
 
     #[test]
-    fn knight_in_middle_cannot_attack_eight_own_squares() {
-        // white knights
-        let white_board = &board::Board::try_from(
-            "1R1RR1R1/R2RR2R/2N2N2/RR1RR1RR/RR1RR1RR/2N2N2/R2RR2R/1R1RR1R1",
+    fn knight_all_four_square_attacks_blocked() {
+        // squares with 4 attacks:
+        // - file a, ranks 3-6
+        // - file h, ranks 3-6
+        // - rank 1, files c-f
+        // - rank 8, files c-f
+        // - b2, b7, g2, g7
+
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from(
+            "pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp",
         )
         .unwrap();
-        check_knight!("c3" on white_board cannot be moved);
-        check_knight!("c6" on white_board cannot be moved);
-        check_knight!("f3" on white_board cannot be moved);
-        check_knight!("f6" on white_board cannot be moved);
 
-        // black knights
-        let black_board = &board::Board::try_from(
-            "1r1rr1r1/r2rr2r/2n2n2/rr1rr1rr/rr1rr1rr/2n2n2/r2rr2r/1r1rr1r1",
+        // create all squares from which knights attack exactly 4 squares
+        let mut all_squares = vec!["b2", "b7", "g2", "g7"];
+        let mut all_squares: Vec<String> = all_squares
+            .iter_mut()
+            .map(|elem| elem.to_string())
+            .collect();
+        for file in ['a', 'h'] {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['1', '8'] {
+            for file in 'c'..='f' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let black = piece::Color::Black;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of black knight on board is 0);
+        }
+    }
+
+    #[test]
+    fn knight_all_six_square_attacks_work() {
+        // squares with 6 attacks:
+        // - file b, ranks 3-6
+        // - file g, ranks 3-6
+        // - rank 2, files c-f
+        // - rank 7, files c-f
+
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // create all squares from which knights attack exactly 6 squares
+        let mut all_squares = vec![];
+        for file in ['b', 'g'] {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['2', '7'] {
+            for file in 'c'..='f' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of white knight on board is 6);
+        }
+    }
+
+    #[test]
+    fn knight_all_six_square_attacks_blocked() {
+        // squares with 6 attacks:
+        // - file b, ranks 3-6
+        // - file g, ranks 3-6
+        // - rank 2, files c-f
+        // - rank 7, files c-f
+
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from(
+            "PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP",
         )
         .unwrap();
-        check_knight!("c3" on black_board cannot be moved);
-        check_knight!("c6" on black_board cannot be moved);
-        check_knight!("f3" on black_board cannot be moved);
-        check_knight!("f6" on black_board cannot be moved);
+
+        // create all squares from which knights attack exactly 6 squares
+        let mut all_squares = vec![];
+        for file in ['b', 'g'] {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['2', '7'] {
+            for file in 'c'..='f' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of white knight on board is 0);
+        }
+    }
+
+    #[test]
+    fn knight_all_eight_square_attacks_work() {
+        // squares with 8 attacks:
+        // files c-f, ranks 3-6
+
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // create all squares from which knights attack exactly 8 squares
+        let mut all_squares = vec![];
+        for file in 'c'..='f' {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let black = piece::Color::Black;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of black knight on board is 8);
+        }
+    }
+
+    #[test]
+    fn knight_all_eight_square_attacks_blocked() {
+        // squares with 8 attacks:
+        // files c-f, ranks 3-6
+
+        // use the fact that the move finding function does not check whether the
+        // knight is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from(
+            "pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp/pppppppp",
+        )
+        .unwrap();
+
+        // create all squares from which knights attack exactly 8 squares
+        let mut all_squares = vec![];
+        for file in 'c'..='f' {
+            for rank in '3'..='6' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let black = piece::Color::Black;
+        for knight in all_squares {
+            let knight = knight.as_str();
+            check_knight!(number of correct moves of black knight on board is 0);
+        }
     }
 
     #[test]
