@@ -644,6 +644,42 @@ mod tests {
                 assert!(diff_rank == 0 || diff_rank == 1);
             }
         };
+        ($color:ident can castle $castle:literal on $board:ident having $context:ident) => {
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (king_square, kingside_target, queenside_target) = match $color {
+                $crate::piece::Color::White => ("e1", "g1", "c1"),
+                $crate::piece::Color::Black => ("e8", "g8", "c8"),
+            };
+
+            let square = $crate::square::Square::try_from(king_square).unwrap();
+            let found_moves =
+                $crate::movegen::find_king_moves(square, $color, white, black, $context);
+
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            println!("{:?}", targets);
+
+            let kside = $crate::square::Square::try_from(kingside_target).unwrap();
+            let qside = $crate::square::Square::try_from(queenside_target).unwrap();
+            match $castle {
+                "kq" => {
+                    assert!(targets.contains(&kside));
+                    assert!(targets.contains(&qside));
+                }
+                "k" => {
+                    assert!(targets.contains(&kside));
+                    assert!(!targets.contains(&qside));
+                }
+                "q" => {
+                    assert!(!targets.contains(&kside));
+                    assert!(targets.contains(&qside));
+                }
+                "-" => {
+                    assert!(!targets.contains(&kside));
+                    assert!(!targets.contains(&qside));
+                }
+                _ => panic!("invalid symbol"),
+            }
+        };
     }
 
     #[test]
@@ -1030,16 +1066,17 @@ mod tests {
     #[test]
     fn king_all_five_square_attacks_work() {
         // places where kings attack exactly 5 squares:
-        // - files b-g on the 1st rank
-        // - files b-g on the 8th rank
-        // - ranks 2-7 on the a file,
-        // - ranks 2-7 on the h file,
+        // - files b-g on the 1st and 8th rank
+        // - ranks 2-7 on the a and h file
 
+        // use the fact that the move finding function does not check whether the
+        // king is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
         let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
 
         // crate all squares from which kings attack exactly 5 squares
         let mut all_squares = vec![];
-
         // variant 1
         for file in 'b'..='g' {
             for rank in ['1', '8'] {
@@ -1047,7 +1084,6 @@ mod tests {
                 all_squares.push(square_s);
             }
         }
-
         // variant 2
         for rank in '2'..='7' {
             for file in ['a', 'h'] {
@@ -1066,11 +1102,13 @@ mod tests {
     #[test]
     fn king_all_five_square_attacks_blocked() {
         // places where kings attack exactly 5 squares:
-        // - files b-g on the 1st rank
-        // - files b-g on the 8th rank
-        // - ranks 2-7 on the a file,
-        // - ranks 2-7 on the h file,
+        // - files b-g on the 1st rank and 8th rank
+        // - ranks 2-7 on the a and h file
 
+        // use the fact that the move finding function does not check whether the
+        // king is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
         let board = &board::Board::try_from(
             "RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR",
         )
@@ -1078,7 +1116,6 @@ mod tests {
 
         // crate all squares from which kings attack exactly 5 squares
         let mut all_squares = vec![];
-
         // variant 1
         for file in 'b'..='g' {
             for rank in ['1', '8'] {
@@ -1086,7 +1123,6 @@ mod tests {
                 all_squares.push(square_s);
             }
         }
-
         // variant 2
         for rank in '2'..='7' {
             for file in ['a', 'h'] {
@@ -1107,11 +1143,14 @@ mod tests {
         // places where kings attack exactly 8 squares:
         // - ranks b-h and files 2-7
 
+        // use the fact that the move finding function does not check whether the
+        // king is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
         let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
 
         // crate all squares from which kings attack exactly 8 squares
         let mut all_squares = vec![];
-
         for file in 'b'..='g' {
             for rank in '2'..='7' {
                 let square_s = format!("{}{}", file, rank);
@@ -1131,6 +1170,10 @@ mod tests {
         // places where kings attack exactly 8 squares:
         // - ranks b-h and files 2-7
 
+        // use the fact that the move finding function does not check whether the
+        // king is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
         let board = &board::Board::try_from(
             "RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR/RRRRRRRR",
         )
@@ -1151,5 +1194,93 @@ mod tests {
             let blocked_king = blocked_king.as_str();
             check_king!(number of correct moves of white blocked_king on board is 0);
         }
+    }
+
+    #[test]
+    fn king_castle_kingside_both_colors() {
+        let board =
+            &board::Board::try_from("rnbqk2r/ppppp2p/5npb/5p2/5P2/5NPB/PPPPP2P/RNBQK2R").unwrap();
+        let context = &context::Context::try_from("w KQkq - 0 1").unwrap();
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+        check_king!(white can castle "k" on board having context);
+        check_king!(black can castle "k" on board having context);
+    }
+
+    #[test]
+    fn king_castle_kingside_both_colors_path_obscured() {
+        // f1 and f8 obscured
+        let board1 =
+            &board::Board::try_from("rnbqkb1r/ppppp2p/5np1/5p2/5P2/5NP1/PPPPP2P/RNBQKB1R").unwrap();
+        // g1 and g8 obscured
+        let board2 =
+            &board::Board::try_from("rnbqk1nr/ppppp2p/6pb/5p2/5P2/6PB/PPPPP2P/RNBQK1NR").unwrap();
+
+        let context = &context::Context::try_from("w KQkq - 0 1").unwrap();
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+
+        check_king!(white can castle "-" on board1 having context);
+        check_king!(black can castle "-" on board1 having context);
+
+        check_king!(white can castle "-" on board2 having context);
+        check_king!(black can castle "-" on board2 having context);
+    }
+
+    #[test]
+    fn king_castle_queenside_both_colors() {
+        let board =
+            &board::Board::try_from("r3kbnr/ppp1pppp/2nq4/3pb3/3P4/2NQB3/PPP1PPPP/R3KBNR").unwrap();
+        let context = &context::Context::try_from("w KQkq - 0 1").unwrap();
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+        check_king!(white can castle "q" on board having context);
+        check_king!(black can castle "q" on board having context);
+    }
+
+    #[test]
+    fn king_castle_queenside_both_colors_path_obscured() {
+        // b1 and b8 obscured
+        let board1 =
+            &board::Board::try_from("rn2kbnr/ppp1pppp/3q4/3pb3/3P4/3QB3/PPP1PPPP/RN2KBNR").unwrap();
+        // c1 and c8 obscured
+        let board2 =
+            &board::Board::try_from("r1b1kbnr/ppp1pppp/2n1q3/3p4/3P4/2NQ4/PPP1PPPP/R1B1KBNR")
+                .unwrap();
+
+        // d1 and d8 obscured
+        let board3 =
+            &board::Board::try_from("r2qkbnr/ppp1pppp/2n1b3/3p4/3P4/2N1B3/PPP1PPPP/R2QKBNR")
+                .unwrap();
+
+        let context = &context::Context::try_from("w KQkq - 0 1").unwrap();
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+
+        check_king!(white can castle "-" on board1 having context);
+        check_king!(black can castle "-" on board1 having context);
+
+        check_king!(white can castle "-" on board2 having context);
+        check_king!(black can castle "-" on board2 having context);
+
+        check_king!(white can castle "-" on board3 having context);
+        check_king!(black can castle "-" on board3 having context);
+    }
+
+    #[test]
+    fn king_castle_bothside_both_colors() {
+        let board =
+            &board::Board::try_from("r3k2r/ppp1ppbp/2nqb1pn/3p4/3P4/2NQBNP1/PPP1PPBP/R3K2R")
+                .unwrap();
+        let context = &context::Context::try_from("w KQkq - 0 1").unwrap();
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+        check_king!(white can castle "kq" on board having context);
+        check_king!(black can castle "kq" on board having context);
     }
 }
