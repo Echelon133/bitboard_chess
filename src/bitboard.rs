@@ -555,7 +555,7 @@ mod tests {
         for square_index in 0..=63 {
             let square = square::Square::from(square_index);
             // set the most significant bit for every bitboard
-            // to make sure that the tested method returns 
+            // to make sure that the tested method returns
             // the index of the least sigificant bit that's set to 1
             let mut bitboard = Bitboard::from(0x8000_0000_0000_0000);
             bitboard.set(square);
@@ -566,7 +566,7 @@ mod tests {
 
     #[test]
     fn bitboard_bitscan_reverse_works() {
-         for square_index in 0..=63 {
+        for square_index in 0..=63 {
             let square = square::Square::from(square_index);
             // set the least significant bit for every bitboard
             // to make sure that the tested method returns
