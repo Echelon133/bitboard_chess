@@ -606,7 +606,7 @@ mod tests {
                 let t_file_i = target_sq.get_file().index() as i8;
                 let t_rank_i = target_sq.get_rank().index() as i8;
 
-                // calculate absolute value of the difference between king's (file, rank) pair
+                // calculate absolute value of the difference between knight's (file, rank) pair
                 // and target square (file, rank) pair
                 let (diff_file, diff_rank) = (file_i - t_file_i, rank_i - t_rank_i);
                 let (diff_file, diff_rank) = (diff_file.abs(), diff_rank.abs());
@@ -691,6 +691,52 @@ mod tests {
                 _ => panic!("invalid symbol"),
             }
         };
+    }
+
+    macro_rules! check_rook {
+        (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_rook_moves(square, $color, white, black);
+            assert_eq!(found_moves.len(), $num);
+
+            // get (file, rank) indexes of the rook's square
+            let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
+            let (file_i, rank_i) = (file_i as i8, rank_i as i8);
+
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+
+            // calculate differences between (file, rank) indexes of the rook's square
+            // and (file, rank) indexes of all squares that find_rook_moves has found
+            for target_sq in targets {
+                let t_file_i = target_sq.get_file().index() as i8;
+                let t_rank_i = target_sq.get_rank().index() as i8;
+
+                // calculate absolute value of the difference between rook's (file, rank) pair
+                // and target square (file, rank) pair
+                let (diff_file, diff_rank) = (file_i - t_file_i, rank_i - t_rank_i);
+
+                // if diff_file is non zero, then diff_rank is zero
+                // if diff_file is zero, then diff_rank is non zero
+                assert!(
+                    (diff_file != 0 && diff_rank == 0) || 
+                    (diff_file == 0 && diff_rank != 0)
+                );
+            }
+        };
+        ($color:ident $square:literal on $board:ident can be moved to $targets:ident) => {
+            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves =
+                $crate::movegen::find_rook_moves(square, $color, white_taken, black_taken);
+            assert_eq!(found_moves.len(), $targets.len());
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
+            for target in expected_targets {
+                assert!(targets.contains(&target));
+            }
+        };
+
     }
 
     #[test]
@@ -1386,5 +1432,59 @@ mod tests {
         let black = piece::Color::Black;
         check_king!(white can castle "kq" on board having context);
         check_king!(black can castle "kq" on board having context);
+    }
+
+    #[test]
+    fn rook_all_fourteen_square_attacks_work() {
+        // use the fact that the move finding function does not check whether the
+        // rook is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board =
+            &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // when a board is empty, rook on every square attacks 14 other squares
+        let mut all_squares = vec![];
+        for file in 'a'..='h' {
+            for rank in '1'..='8' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        let black = piece::Color::Black;
+
+        for rook in all_squares {
+            let rook = rook.as_str();
+            check_rook!(number of correct moves of white rook on board is 14);
+            check_rook!(number of correct moves of black rook on board is 14);
+        }
+    }
+
+    #[test]
+    fn rook_does_not_attack_own_pieces() {
+        let squares = &["c4", "b4", "d5", "d6", "d3", "e4"];
+        
+        let white_board = &board::Board::try_from("7k/1b1N4/7n/8/B2R1P2/8/3Q4/K5n1").unwrap();
+        let white = piece::Color::White;
+        check_rook!(white "d4" on white_board can be moved to squares);
+
+        let black_board = &board::Board::try_from("7K/1B1n4/7N/8/b2r1p2/8/3q4/k5N1").unwrap();
+        let black = piece::Color::Black;
+        check_rook!(black "d4" on black_board can be moved to squares);
+    }
+
+    #[test]
+    fn rook_white_attacks_enemy_pieces() {
+        let squares = &["c4", "b4", "a4", "d5", "d6", "d7", "d3", "d2", "e4", "f4"];
+        
+        let white_board = &board::Board::try_from("7k/1b1n4/7n/8/b2R1p2/8/3q4/K5n1").unwrap();
+        let white = piece::Color::White;
+        check_rook!(white "d4" on white_board can be moved to squares);
+
+        let black_board = &board::Board::try_from("7K/1B1N4/7N/8/B2r1P2/8/3Q4/k5N1").unwrap();
+        let black = piece::Color::Black;
+        check_rook!(black "d4" on black_board can be moved to squares);
     }
 }
