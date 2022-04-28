@@ -933,6 +933,441 @@ fn find_rook_moves(
     moves
 }
 
+/// Precalculated rays for pieces that attack diagonally north-east
+/// (slide towards the 8th rank and h file)
+///
+/// # Example
+/// ASCII representation of a north-east ray for the square b2:
+/// ```
+/// 00000001
+/// 00000010
+/// 00000100
+/// 00001000
+/// 00010000
+/// 00100000
+/// 00000000
+/// 00000000
+/// ```
+///
+static NORTHEAST_ATTACK_RAYS: [u64; 64] = [
+    0x8040201008040200,
+    0x80402010080400,
+    0x804020100800,
+    0x8040201000,
+    0x80402000,
+    0x804000,
+    0x8000,
+    0x0,
+    0x4020100804020000,
+    0x8040201008040000,
+    0x80402010080000,
+    0x804020100000,
+    0x8040200000,
+    0x80400000,
+    0x800000,
+    0x0,
+    0x2010080402000000,
+    0x4020100804000000,
+    0x8040201008000000,
+    0x80402010000000,
+    0x804020000000,
+    0x8040000000,
+    0x80000000,
+    0x0,
+    0x1008040200000000,
+    0x2010080400000000,
+    0x4020100800000000,
+    0x8040201000000000,
+    0x80402000000000,
+    0x804000000000,
+    0x8000000000,
+    0x0,
+    0x804020000000000,
+    0x1008040000000000,
+    0x2010080000000000,
+    0x4020100000000000,
+    0x8040200000000000,
+    0x80400000000000,
+    0x800000000000,
+    0x0,
+    0x402000000000000,
+    0x804000000000000,
+    0x1008000000000000,
+    0x2010000000000000,
+    0x4020000000000000,
+    0x8040000000000000,
+    0x80000000000000,
+    0x0,
+    0x200000000000000,
+    0x400000000000000,
+    0x800000000000000,
+    0x1000000000000000,
+    0x2000000000000000,
+    0x4000000000000000,
+    0x8000000000000000,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+];
+
+/// Precalculated rays for pieces that attack diagonally north-west
+/// (slide towards the 8th rank and a file)
+///
+/// # Example
+/// ASCII representation of a north-west ray for the square b2:
+/// ```
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 10000000
+/// 00000000
+/// 00000000
+/// ```
+///
+static NORTHWEST_ATTACK_RAYS: [u64; 64] = [
+    0x0,
+    0x100,
+    0x10200,
+    0x1020400,
+    0x102040800,
+    0x10204081000,
+    0x1020408102000,
+    0x102040810204000,
+    0x0,
+    0x10000,
+    0x1020000,
+    0x102040000,
+    0x10204080000,
+    0x1020408100000,
+    0x102040810200000,
+    0x204081020400000,
+    0x0,
+    0x1000000,
+    0x102000000,
+    0x10204000000,
+    0x1020408000000,
+    0x102040810000000,
+    0x204081020000000,
+    0x408102040000000,
+    0x0,
+    0x100000000,
+    0x10200000000,
+    0x1020400000000,
+    0x102040800000000,
+    0x204081000000000,
+    0x408102000000000,
+    0x810204000000000,
+    0x0,
+    0x10000000000,
+    0x1020000000000,
+    0x102040000000000,
+    0x204080000000000,
+    0x408100000000000,
+    0x810200000000000,
+    0x1020400000000000,
+    0x0,
+    0x1000000000000,
+    0x102000000000000,
+    0x204000000000000,
+    0x408000000000000,
+    0x810000000000000,
+    0x1020000000000000,
+    0x2040000000000000,
+    0x0,
+    0x100000000000000,
+    0x200000000000000,
+    0x400000000000000,
+    0x800000000000000,
+    0x1000000000000000,
+    0x2000000000000000,
+    0x4000000000000000,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+];
+
+/// Precalculated rays for pieces that attack diagonally south-east
+/// (slide towards the 1st rank and h file)
+///
+/// # Example
+/// ASCII representation of a south-east ray for the square b2:
+/// ```
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00100000
+/// ```
+///
+static SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x2,
+    0x4,
+    0x8,
+    0x10,
+    0x20,
+    0x40,
+    0x80,
+    0x0,
+    0x204,
+    0x408,
+    0x810,
+    0x1020,
+    0x2040,
+    0x4080,
+    0x8000,
+    0x0,
+    0x20408,
+    0x40810,
+    0x81020,
+    0x102040,
+    0x204080,
+    0x408000,
+    0x800000,
+    0x0,
+    0x2040810,
+    0x4081020,
+    0x8102040,
+    0x10204080,
+    0x20408000,
+    0x40800000,
+    0x80000000,
+    0x0,
+    0x204081020,
+    0x408102040,
+    0x810204080,
+    0x1020408000,
+    0x2040800000,
+    0x4080000000,
+    0x8000000000,
+    0x0,
+    0x20408102040,
+    0x40810204080,
+    0x81020408000,
+    0x102040800000,
+    0x204080000000,
+    0x408000000000,
+    0x800000000000,
+    0x0,
+    0x2040810204080,
+    0x4081020408000,
+    0x8102040800000,
+    0x10204080000000,
+    0x20408000000000,
+    0x40800000000000,
+    0x80000000000000,
+    0x0,
+];
+
+/// Precalculated rays for pieces that attack diagonally south-west
+/// (slide towards the 1st rank and a file)
+///
+/// # Example
+/// ASCII representation of a south-west ray for the square b2:
+/// ```
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 10000000
+/// ```
+///
+static SOUTHWEST_ATTACK_RAYS: [u64; 64] = [
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x1,
+    0x2,
+    0x4,
+    0x8,
+    0x10,
+    0x20,
+    0x40,
+    0x0,
+    0x100,
+    0x201,
+    0x402,
+    0x804,
+    0x1008,
+    0x2010,
+    0x4020,
+    0x0,
+    0x10000,
+    0x20100,
+    0x40201,
+    0x80402,
+    0x100804,
+    0x201008,
+    0x402010,
+    0x0,
+    0x1000000,
+    0x2010000,
+    0x4020100,
+    0x8040201,
+    0x10080402,
+    0x20100804,
+    0x40201008,
+    0x0,
+    0x100000000,
+    0x201000000,
+    0x402010000,
+    0x804020100,
+    0x1008040201,
+    0x2010080402,
+    0x4020100804,
+    0x0,
+    0x10000000000,
+    0x20100000000,
+    0x40201000000,
+    0x80402010000,
+    0x100804020100,
+    0x201008040201,
+    0x402010080402,
+    0x0,
+    0x1000000000000,
+    0x2010000000000,
+    0x4020100000000,
+    0x8040201000000,
+    0x10080402010000,
+    0x20100804020100,
+    0x40201008040201,
+];
+
+/// Finds all pseudo-legal moves for a sliding piece that moves
+/// diagonally.
+/// This can be either a bishop or a queen.
+///
+fn find_diagonal_moves(
+    piece_square: square::Square,
+    color: piece::Color,
+    white_taken: &bitboard::Bitboard,
+    black_taken: &bitboard::Bitboard,
+    moves: &mut Vec<moves::UCIMove>,
+) {
+    let own_pieces = match color {
+        piece::Color::White => *white_taken,
+        piece::Color::Black => *black_taken,
+    };
+
+    let all_taken = *white_taken | *black_taken;
+    let index = piece_square.get_index();
+
+    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
+    let mut northeast_attack = bitboard::Bitboard::from(NORTHEAST_ATTACK_RAYS[index]);
+    let blocker = northeast_attack & all_taken;
+    if blocker.count_set() != 0 {
+        let blocker_index = blocker.bitscan_forward() as usize;
+        let blocker_ray = bitboard::Bitboard::from(NORTHEAST_ATTACK_RAYS[blocker_index]);
+        northeast_attack = northeast_attack ^ blocker_ray;
+        // if the blocker piece and the attacking piece have the same color,
+        // do not attack the blocking piece
+        let blocker_square = square::Square::from(blocker_index as u8);
+        if own_pieces.is_set(blocker_square) {
+            northeast_attack.clear(blocker_square);
+        }
+    }
+
+    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
+    let mut southeast_attack = bitboard::Bitboard::from(SOUTHEAST_ATTACK_RAYS[index]);
+    let blocker = southeast_attack & all_taken;
+    if blocker.count_set() != 0 {
+        let blocker_index = blocker.bitscan_reverse() as usize;
+        let blocker_ray = bitboard::Bitboard::from(SOUTHEAST_ATTACK_RAYS[blocker_index]);
+        southeast_attack = southeast_attack ^ blocker_ray;
+        // if the blocker piece and the attacking piece have the same color,
+        // do not attack the blocking piece
+        let blocker_square = square::Square::from(blocker_index as u8);
+        if own_pieces.is_set(blocker_square) {
+            southeast_attack.clear(blocker_square);
+        }
+    }
+
+    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
+    let mut northwest_attack = bitboard::Bitboard::from(NORTHWEST_ATTACK_RAYS[index]);
+    let blocker = northwest_attack & all_taken;
+    if blocker.count_set() != 0 {
+        let blocker_index = blocker.bitscan_forward() as usize;
+        let blocker_ray = bitboard::Bitboard::from(NORTHWEST_ATTACK_RAYS[blocker_index]);
+        northwest_attack = northwest_attack ^ blocker_ray;
+        // if the blocker piece and the attacking piece have the same color,
+        // do not attack the blocking piece
+        let blocker_square = square::Square::from(blocker_index as u8);
+        if own_pieces.is_set(blocker_square) {
+            northwest_attack.clear(blocker_square);
+        }
+    }
+
+    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
+    let mut southwest_attack = bitboard::Bitboard::from(SOUTHWEST_ATTACK_RAYS[index]);
+    let blocker = southwest_attack & all_taken;
+    if blocker.count_set() != 0 {
+        let blocker_index = blocker.bitscan_reverse() as usize;
+        let blocker_ray = bitboard::Bitboard::from(SOUTHWEST_ATTACK_RAYS[blocker_index]);
+        southwest_attack = southwest_attack ^ blocker_ray;
+        // if the blocker piece and the attacking piece have the same color,
+        // do not attack the blocking piece
+        let blocker_square = square::Square::from(blocker_index as u8);
+        if own_pieces.is_set(blocker_square) {
+            southwest_attack.clear(blocker_square);
+        }
+    }
+
+    // sum all attacked squares from north-east, north-west, south-east and south-west
+    let all_attacks = northwest_attack | northeast_attack | southwest_attack | southeast_attack;
+    for target_square in all_attacks.iter() {
+        let mv = moves::Move::new(piece_square, target_square);
+        moves.push(moves::UCIMove::Regular { m: mv });
+    }
+}
+
+/// Finds all pseudo-legal moves for the bishop on the given square.
+/// This function assumes that a piece that is placed on the given square
+/// is actually a bishop. It does not check whether that is true,
+/// so incorrect call to this function will yield invalid moves.
+///
+fn find_bishop_moves(
+    piece_square: square::Square,
+    color: piece::Color,
+    white_taken: &bitboard::Bitboard,
+    black_taken: &bitboard::Bitboard,
+) -> Vec<moves::UCIMove> {
+    let mut moves = Vec::with_capacity(4);
+    find_diagonal_moves(piece_square, color, white_taken, black_taken, &mut moves);
+    moves
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
