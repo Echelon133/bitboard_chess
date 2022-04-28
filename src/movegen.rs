@@ -1174,6 +1174,49 @@ mod tests {
         };
     }
 
+    macro_rules! check_bishop {
+        (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
+            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves = $crate::movegen::find_bishop_moves(square, $color, white, black);
+            assert_eq!(found_moves.len(), $num);
+
+            // get (file, rank) indexes of the rook's square
+            let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
+            let (file_i, rank_i) = (file_i as i8, rank_i as i8);
+
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+
+            // calculate differences between (file, rank) indexes of the bishop's square
+            // and (file, rank) indexes of all squares that find_bishop_moves has found
+            for target_sq in targets {
+                let t_file_i = target_sq.get_file().index() as i8;
+                let t_rank_i = target_sq.get_rank().index() as i8;
+
+                // calculate absolute value of the difference between rook's (file, rank) pair
+                // and target square (file, rank) pair
+                let (diff_file, diff_rank) = (file_i - t_file_i, rank_i - t_rank_i);
+                let (diff_file, diff_rank) = (diff_file.abs(), diff_rank.abs());
+
+                // diff_file == diff_rank
+                assert!(diff_file != 0 && diff_rank != 0);
+                assert_eq!(diff_file, diff_rank);
+            }
+        };
+        ($color:ident $square:literal on $board:ident can be moved to $targets:ident) => {
+            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let square = $crate::square::Square::try_from($square).unwrap();
+            let found_moves =
+                $crate::movegen::find_bishop_moves(square, $color, white_taken, black_taken);
+            assert_eq!(found_moves.len(), $targets.len());
+            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
+            for target in expected_targets {
+                assert!(targets.contains(&target));
+            }
+        };
+    }
+
     #[test]
     fn pawn_unmoved_has_two_moves_when_not_blocked() {
         let board = &board::Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap();
@@ -1920,5 +1963,154 @@ mod tests {
         let black_board = &board::Board::try_from("7K/1B1N4/7N/8/B2r1P2/8/3Q4/k5N1").unwrap();
         let black = piece::Color::Black;
         check_rook!(black "d4" on black_board can be moved to squares);
+    }
+
+    #[test]
+    fn bishop_all_seven_square_attacks_work() {
+        // squares where bishops attack exactly 7 squares:
+        // - ranks 1 and 8, and files a and h
+        
+        // use the fact that the move finding function does not check whether the
+        // bishop is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+        
+        // create all squares from which bishops attack exactly 7 squares
+        let mut all_squares = vec![];
+        for file in ['a', 'h'] {
+            for rank in ['1', '8'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for bishop in all_squares {
+            let bishop = bishop.as_str();
+            check_bishop!(number of correct moves of white bishop on board is 7);
+        }
+
+    }
+    
+    #[test]
+    fn bishop_all_nine_square_attacks_work() {
+        // squares where bishops attack exactly 9 squares:
+        // - ranks 2-7, file b and g
+        // - ranks 2 and 7, files c-f
+        
+        // use the fact that the move finding function does not check whether the
+        // bishop is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // create all squares from which bishops attack exactly 9 squares
+        let mut all_squares = vec![];
+        for rank in '2'..='7' {
+            for file in ['b', 'g'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['2', '7'] {
+            for file in 'c'..='f' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        
+        let black = piece::Color::Black;
+        for bishop in all_squares {
+            let bishop = bishop.as_str();
+            check_bishop!(number of correct moves of black bishop on board is 9);
+        }
+    }
+
+    #[test]
+    fn bishop_all_eleven_square_attacks_work() {
+        // squares where bishop attack exactly 11 squares:
+        // - ranks 3-6, file c and f
+        // - ranks 3 and 6, file d-e
+
+        // use the fact that the move finding function does not check whether the
+        // bishop is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // create all squares from which bishops attack exactly 11 squares
+        let mut all_squares = vec![];
+        for rank in '3'..='6' {
+            for file in ['c', 'f'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+        for rank in ['3', '6'] {
+            for file in 'd'..='e' {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let white = piece::Color::White;
+        for bishop in all_squares {
+            let bishop = bishop.as_str();
+            check_bishop!(number of correct moves of white bishop on board is 11);
+        }
+    }
+
+    #[test]
+    fn bishop_all_thirteen_square_attacks_work() {
+        // squares where bishop attack exactly 13 squares:
+        // - ranks 4-5, files d-e
+
+        // use the fact that the move finding function does not check whether the
+        // bishop is actually on the board where it's told it is (the invariant),
+        // to simplify setup of the test board by ignoring that invariant
+        // (which should NOT be done outside of tests)
+        let board = &board::Board::try_from("8/8/8/8/8/8/8/8").unwrap();
+
+        // create all squares from which bishops attack exactly 11 squares
+        let mut all_squares = vec![];
+        for rank in '4'..='5' {
+            for file in ['d', 'e'] {
+                let square_s = format!("{}{}", file, rank);
+                all_squares.push(square_s);
+            }
+        }
+
+        let black = piece::Color::Black;
+        for bishop in all_squares {
+            let bishop = bishop.as_str();
+            check_bishop!(number of correct moves of black bishop on board is 13);
+        }
+    }
+
+    #[test]
+    fn bishop_does_not_attack_own_pieces() {
+        let squares = &["b3", "c4", "c6", "e4", "e6", "f7"];
+
+        let white_board = &board::Board::try_from("6N1/1R6/8/3B4/8/5Q2/K7/8").unwrap();
+        let white = piece::Color::White;
+        check_bishop!(white "d5" on white_board can be moved to squares);
+
+        let black_board = &board::Board::try_from("6n1/1r6/8/3b4/8/5q2/k7/8").unwrap();
+        let black = piece::Color::Black;
+        check_bishop!(black "d5" on black_board can be moved to squares);
+    }
+
+    #[test]
+    fn bishop_attacks_enemy_pieces() {
+        let squares = &["a2", "b3", "b7", "c4", "c6", "e4", "e6", "f3", "f7", "g8"];
+
+        let white_board = &board::Board::try_from("6n1/1r6/8/3B4/8/5q2/k7/8").unwrap();
+        let white = piece::Color::White;
+        check_bishop!(white "d5" on white_board can be moved to squares);
+
+        let black_board = &board::Board::try_from("6N1/1R6/8/3b4/8/5Q2/K7/8").unwrap();
+        let black = piece::Color::Black;
+        check_bishop!(black "d5" on black_board can be moved to squares);
     }
 }
