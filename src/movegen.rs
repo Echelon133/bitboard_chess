@@ -1910,7 +1910,7 @@ mod tests {
     }
 
     #[test]
-    fn rook_white_attacks_enemy_pieces() {
+    fn rook_attacks_enemy_pieces() {
         let squares = &["c4", "b4", "a4", "d5", "d6", "d7", "d3", "d2", "e4", "f4"];
 
         let white_board = &board::Board::try_from("7k/1b1n4/7n/8/b2R1p2/8/3q4/K5n1").unwrap();
