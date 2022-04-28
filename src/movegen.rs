@@ -1368,6 +1368,23 @@ fn find_bishop_moves(
     moves
 }
 
+/// Finds all pseudo-legal moves for the queen on the given square.
+/// This function assumes that a piece that is placed on the given square
+/// is actually a queen. It does not check whether that is true,
+/// so incorrect call to this function will yield invalid moves.
+///
+fn find_queen_moves(
+    piece_square: square::Square,
+    color: piece::Color,
+    white_taken: &bitboard::Bitboard,
+    black_taken: &bitboard::Bitboard,
+) -> Vec<moves::UCIMove> {
+    let mut moves = Vec::with_capacity(4);
+    find_diagonal_moves(piece_square, color, white_taken, black_taken, &mut moves);
+    find_file_rank_moves(piece_square, color, white_taken, black_taken, &mut moves);
+    moves
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
