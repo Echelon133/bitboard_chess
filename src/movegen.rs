@@ -826,6 +826,46 @@ static WEST_ATTACK_RAYS: [u64; 64] = [
     0x7f00000000000000,
 ];
 
+macro_rules! positive_ray_attack {
+    ($rays:ident, $own_pieces:ident, $all_taken:ident, $index:expr) => {{
+        // see: https://www.chessprogramming.org/Classical_Approach#Conditional
+        let mut attack = $crate::bitboard::Bitboard::from($rays[$index]);
+        let blocker = attack & $all_taken;
+        if blocker.count_set() != 0 {
+            let blocker_index = blocker.bitscan_forward() as usize;
+            let blocker_ray = $crate::bitboard::Bitboard::from($rays[blocker_index]);
+            attack = attack ^ blocker_ray;
+            // if the blocker piece and the attacking piece have the same color,
+            // do not attack the blocking piece
+            let blocker_square = $crate::square::Square::from(blocker_index as u8);
+            if $own_pieces.is_set(blocker_square) {
+                attack.clear(blocker_square);
+            }
+        }
+        attack
+    }};
+}
+
+macro_rules! negative_ray_attack {
+    ($rays:ident, $own_pieces:ident, $all_taken:ident, $index:expr) => {{
+        // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
+        let mut attack = $crate::bitboard::Bitboard::from($rays[$index]);
+        let blocker = attack & $all_taken;
+        if blocker.count_set() != 0 {
+            let blocker_index = blocker.bitscan_reverse() as usize;
+            let blocker_ray = $crate::bitboard::Bitboard::from($rays[blocker_index]);
+            attack = attack ^ blocker_ray;
+            // if the blocker piece and the attacking piece have the same color,
+            // do not attack the blocking piece
+            let blocker_square = $crate::square::Square::from(blocker_index as u8);
+            if $own_pieces.is_set(blocker_square) {
+                attack.clear(blocker_square);
+            }
+        }
+        attack
+    }};
+}
+
 /// Finds all pseudo-legal moves for a sliding piece that only moves
 /// on its file or rank.
 /// This can be either a rook or a queen.
@@ -842,72 +882,17 @@ fn find_file_rank_moves(
     moves: &mut Vec<moves::UCIMove>,
 ) {
     let own_pieces = match color {
-        piece::Color::White => *white_taken,
-        piece::Color::Black => *black_taken,
+        piece::Color::White => white_taken,
+        piece::Color::Black => black_taken,
     };
 
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
-    let mut north_attack = bitboard::Bitboard::from(NORTH_ATTACK_RAYS[index]);
-    let blocker = north_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_forward() as usize;
-        let blocker_ray = bitboard::Bitboard::from(NORTH_ATTACK_RAYS[blocker_index]);
-        north_attack = north_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            north_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
-    let mut south_attack = bitboard::Bitboard::from(SOUTH_ATTACK_RAYS[index]);
-    let blocker = south_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_reverse() as usize;
-        let blocker_ray = bitboard::Bitboard::from(SOUTH_ATTACK_RAYS[blocker_index]);
-        south_attack = south_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            south_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
-    let mut east_attack = bitboard::Bitboard::from(EAST_ATTACK_RAYS[index]);
-    let blocker = east_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_forward() as usize;
-        let blocker_ray = bitboard::Bitboard::from(EAST_ATTACK_RAYS[blocker_index]);
-        east_attack = east_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            east_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
-    let mut west_attack = bitboard::Bitboard::from(WEST_ATTACK_RAYS[index]);
-    let blocker = west_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_reverse() as usize;
-        let blocker_ray = bitboard::Bitboard::from(WEST_ATTACK_RAYS[blocker_index]);
-        west_attack = west_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            west_attack.clear(blocker_square);
-        }
-    }
+    let north_attack = positive_ray_attack!(NORTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let south_attack = negative_ray_attack!(SOUTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let east_attack = positive_ray_attack!(EAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let west_attack = negative_ray_attack!(WEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north, south, east and west
     let all_attacks = north_attack | south_attack | east_attack | west_attack;
@@ -1277,75 +1262,20 @@ fn find_diagonal_moves(
     moves: &mut Vec<moves::UCIMove>,
 ) {
     let own_pieces = match color {
-        piece::Color::White => *white_taken,
-        piece::Color::Black => *black_taken,
+        piece::Color::White => white_taken,
+        piece::Color::Black => black_taken,
     };
 
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
-    let mut northeast_attack = bitboard::Bitboard::from(NORTHEAST_ATTACK_RAYS[index]);
-    let blocker = northeast_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_forward() as usize;
-        let blocker_ray = bitboard::Bitboard::from(NORTHEAST_ATTACK_RAYS[blocker_index]);
-        northeast_attack = northeast_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            northeast_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
-    let mut southeast_attack = bitboard::Bitboard::from(SOUTHEAST_ATTACK_RAYS[index]);
-    let blocker = southeast_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_reverse() as usize;
-        let blocker_ray = bitboard::Bitboard::from(SOUTHEAST_ATTACK_RAYS[blocker_index]);
-        southeast_attack = southeast_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            southeast_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional
-    let mut northwest_attack = bitboard::Bitboard::from(NORTHWEST_ATTACK_RAYS[index]);
-    let blocker = northwest_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_forward() as usize;
-        let blocker_ray = bitboard::Bitboard::from(NORTHWEST_ATTACK_RAYS[blocker_index]);
-        northwest_attack = northwest_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            northwest_attack.clear(blocker_square);
-        }
-    }
-
-    // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
-    let mut southwest_attack = bitboard::Bitboard::from(SOUTHWEST_ATTACK_RAYS[index]);
-    let blocker = southwest_attack & all_taken;
-    if blocker.count_set() != 0 {
-        let blocker_index = blocker.bitscan_reverse() as usize;
-        let blocker_ray = bitboard::Bitboard::from(SOUTHWEST_ATTACK_RAYS[blocker_index]);
-        southwest_attack = southwest_attack ^ blocker_ray;
-        // if the blocker piece and the attacking piece have the same color,
-        // do not attack the blocking piece
-        let blocker_square = square::Square::from(blocker_index as u8);
-        if own_pieces.is_set(blocker_square) {
-            southwest_attack.clear(blocker_square);
-        }
-    }
+    let ne_attack = positive_ray_attack!(NORTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let se_attack = negative_ray_attack!(SOUTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let nw_attack = positive_ray_attack!(NORTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let sw_attack = negative_ray_attack!(SOUTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north-east, north-west, south-east and south-west
-    let all_attacks = northwest_attack | northeast_attack | southwest_attack | southeast_attack;
+    let all_attacks = nw_attack | ne_attack | sw_attack | se_attack;
     for target_square in all_attacks.iter() {
         let mv = moves::Move::new(piece_square, target_square);
         moves.push(moves::UCIMove::Regular { m: mv });
