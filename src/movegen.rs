@@ -826,6 +826,45 @@ static WEST_ATTACK_RAYS: [u64; 64] = [
     0x7f00000000000000,
 ];
 
+/// Generates code that handles the creation of attack bitboards for rays that are positive 
+/// (i.e. each next square on the ray's trajectory has a bigger index than the previous
+/// square on that ray's path).
+/// 
+/// There has to be a distinction between positive and negative rays, because
+/// during the processing of attack bitboards, one of the steps requires finding
+/// the first bit in a bitboard that's set to 1 (that bit represents
+/// the first occupied square that's on the attacking ray's path).
+///
+/// The direction of the bitscan has to be the same as the direction of the attacking ray
+/// (so positive rays require bitscan start from the least significant bit, and
+/// negative rays need bitscans to start from the most significant bit).
+/// Having the correct direction of the bitscan is important, because incorect
+/// direction of the scan will not return the index of the square occupied by the first
+/// blocker on the path, but instead will return the index of the last occupied square
+/// that's attacked by the ray. 
+///
+/// # Example - finding the first square that blocks the ray's path
+/// 
+/// The bitboard below (in ASCII representation) is the result of finding common bits between:
+/// - a bitboard that represents all squares that are occupied on the board
+/// - a bitboard that represents an attack towards the north-west side of the board
+///
+/// ```
+/// 10000000
+/// 01000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// ```
+///
+/// In this case, since the attack comes from squares with lower indexes towards squares
+/// with higher indexes, bitscan-forward has to be used.
+/// The result is the index of the b7 square (which is in fact the square containing the 
+/// blocking piece).
+///
 macro_rules! positive_ray_attack {
     ($rays:ident, $own_pieces:ident, $all_taken:ident, $index:expr) => {{
         // see: https://www.chessprogramming.org/Classical_Approach#Conditional
@@ -846,6 +885,45 @@ macro_rules! positive_ray_attack {
     }};
 }
 
+/// Generates code that handles the creation of attack bitboards for rays that are negative 
+/// (i.e. each next square on the ray's trajectory has a smaller index than the previous
+/// square on that ray's path).
+/// 
+/// There has to be a distinction between positive and negative rays, because
+/// during the processing of attack bitboards, one of the steps requires finding
+/// the first bit in a bitboard that's set to 1 (that bit represents
+/// the first occupied square that's on the attacking ray's path).
+///
+/// The direction of the bitscan has to be the same as the direction of the attacking ray
+/// (so positive rays require bitscan start from the least significant bit, and
+/// negative rays need bitscans to start from the most significant bit).
+/// Having the correct direction of the bitscan is important, because incorect
+/// direction of the scan will not return the index of the square occupied by the first
+/// blocker on the path, but instead will return the index of the last occupied square
+/// that's attacked by the ray. 
+///
+/// # Example - finding the first square that blocks the ray's path
+/// 
+/// The bitboard below (in ASCII representation) is the result of finding common bits between:
+/// - a bitboard that represents all squares that are occupied on the board
+/// - a bitboard that represents an attack towards the south-east side of the board
+///
+/// ```
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000100
+/// 00000000
+/// 00000001
+/// ```
+///
+/// In this case, since the attack comes from squares with higher indexes towards squares
+/// with lower indexes, bitscan-reverse has to be used.
+/// The result is the index of the f3 square (which is in fact the square containing the 
+/// blocking piece).
+///
 macro_rules! negative_ray_attack {
     ($rays:ident, $own_pieces:ident, $all_taken:ident, $index:expr) => {{
         // see: https://www.chessprogramming.org/Classical_Approach#Conditional_2
