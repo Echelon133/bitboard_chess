@@ -1,8 +1,6 @@
 /// Precalculated attack patterns for knights (for each one of 64 squares).
 /// Each square has a 64 bit number in which set bits represent which
 /// squares are attacked by a knight from that square.
-/// Since there is no differences between how white or black knights
-/// operate, these attack patterns are universal.
 ///
 /// Patterns are ordered left-to-right, bottom-to-top (from white's perspective).
 /// This means that:
@@ -10,6 +8,20 @@
 /// - pattern for a knight on "b1" has index 1
 /// - pattern for a knight on "h8" has index 63
 ///
+/// # Example
+/// The attack pattern for the square a1 (index 0) is represented by
+/// 0x2_04_00, which (displayed as a bitboard) looks like this:
+/// ```
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 01000000 // 0x02
+/// 00100000 // 0x04
+/// 00000000 // 0x00
+/// ```
+/// 
 pub static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
     0x20400,
     0x50800,
@@ -79,13 +91,27 @@ pub static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
 
 /// Precalculated attack patterns for kings (for each one of 64 squares).
 /// Each square has a 64 bit number in which set bits represent which
-/// squares are attacked by a knight from that square.
+/// squares are attacked by a king from that square.
 ///
 /// Patterns are ordered left-to-right, bottom-to-top (from white's perspective).
 /// This means that:
 /// - pattern for a king on "a1" has index 0
 /// - pattern for a king on "b1" has index 1
 /// - pattern for a king on "h8" has index 63
+///
+/// # Example
+/// The attack pattern for the square a1 (index 0) is represented by
+/// 0x3_02, which (displayed as a bitboard) looks like this:
+/// ```
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 11000000 // 0x03
+/// 01000000 // 0x02
+/// ```
 ///
 pub static KING_ATTACK_PATTERNS: [u64; 64] = [
     0x302,
@@ -158,16 +184,17 @@ pub static KING_ATTACK_PATTERNS: [u64; 64] = [
 /// to finish, only moving towards the 8th rank).
 ///
 /// # Example
-/// ASCII representation of a north ray for the square b2:
+/// The north attack ray for the square b2 (index 9) is represented by
+/// 0x2_02_02_02_02_02_00_00, which (displayed as a bitboard) looks like this:
 /// ```
-/// 01000000
-/// 01000000
-/// 01000000
-/// 01000000
-/// 01000000
-/// 01000000
-/// 00000000
-/// 00000000
+/// 01000000 // 0x02
+/// 01000000 // 0x02
+/// 01000000 // 0x02
+/// 01000000 // 0x02
+/// 01000000 // 0x02
+/// 01000000 // 0x02
+/// 00000000 // 0x00
+/// 00000000 // 0x00
 /// ```
 ///
 pub static NORTH_ATTACK_RAYS: [u64; 64] = [
@@ -241,16 +268,17 @@ pub static NORTH_ATTACK_RAYS: [u64; 64] = [
 /// to finish, only moving towards the 1st rank).
 ///
 /// # Example
-/// ASCII representation of a south ray for the square b2:
+/// The south attack ray for the square b2 (index 9) is represented by
+/// 0x2, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 01000000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 01000000 // 0x2
 /// ```
 ///
 pub static SOUTH_ATTACK_RAYS: [u64; 64] = [
@@ -324,16 +352,17 @@ pub static SOUTH_ATTACK_RAYS: [u64; 64] = [
 /// to finish, only moving towards the H file).
 ///
 /// # Example
-/// ASCII representation of an east ray for the square b2:
+/// The east attack ray for the square b2 (index 9) is represented by
+/// 0xfc_00, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00111111
-/// 00000000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00111111 // 0xfc
+/// 00000000 // 0x00
 /// ```
 ///
 pub static EAST_ATTACK_RAYS: [u64; 64] = [
@@ -407,16 +436,17 @@ pub static EAST_ATTACK_RAYS: [u64; 64] = [
 /// to finish, only moving towards the A file).
 ///
 /// # Example
-/// ASCII representation of a west ray for the square b2:
+/// The west attack ray for the square b2 (index 9) is represented by
+/// 0x1_00, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 10000000
-/// 00000000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 10000000 // 0x01
+/// 00000000 // 0x00
 /// ```
 ///
 pub static WEST_ATTACK_RAYS: [u64; 64] = [
@@ -487,19 +517,20 @@ pub static WEST_ATTACK_RAYS: [u64; 64] = [
 ];
 
 /// Precalculated rays for pieces that attack diagonally north-east
-/// (slide towards the 8th rank and h file)
+/// (slide towards the 8th rank and the H file).
 ///
 /// # Example
-/// ASCII representation of a north-east ray for the square b2:
+/// The north-east attack ray for the square b2 (index 9) is represented by
+/// 0x80_40_20_10_08_04_00_00, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000001
-/// 00000010
-/// 00000100
-/// 00001000
-/// 00010000
-/// 00100000
-/// 00000000
-/// 00000000
+/// 00000001 // 0x80
+/// 00000010 // 0x40
+/// 00000100 // 0x20
+/// 00001000 // 0x10
+/// 00010000 // 0x08
+/// 00100000 // 0x04
+/// 00000000 // 0x00
+/// 00000000 // 0x00
 /// ```
 ///
 pub static NORTHEAST_ATTACK_RAYS: [u64; 64] = [
@@ -570,19 +601,20 @@ pub static NORTHEAST_ATTACK_RAYS: [u64; 64] = [
 ];
 
 /// Precalculated rays for pieces that attack diagonally north-west
-/// (slide towards the 8th rank and a file)
+/// (slide towards the 8th rank and the A file).
 ///
 /// # Example
-/// ASCII representation of a north-west ray for the square b2:
+/// The north-west attack ray for the square b2 (index 9) is represented by
+/// 0x1_00_00, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 10000000
-/// 00000000
-/// 00000000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 10000000 // 0x01
+/// 00000000 // 0x00
+/// 00000000 // 0x00
 /// ```
 ///
 pub static NORTHWEST_ATTACK_RAYS: [u64; 64] = [
@@ -653,19 +685,20 @@ pub static NORTHWEST_ATTACK_RAYS: [u64; 64] = [
 ];
 
 /// Precalculated rays for pieces that attack diagonally south-east
-/// (slide towards the 1st rank and h file)
+/// (slide towards the 1st rank and the H file).
 ///
 /// # Example
-/// ASCII representation of a south-east ray for the square b2:
+/// The south-east attack rays for the square b2 (index 9) is represented by
+/// 0x4, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00100000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00100000 // 0x04
 /// ```
 ///
 pub static SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
@@ -736,19 +769,20 @@ pub static SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
 ];
 
 /// Precalculated rays for pieces that attack diagonally south-west
-/// (slide towards the 1st rank and a file)
+/// (slide towards the 1st rank and the A file).
 ///
 /// # Example
-/// ASCII representation of a south-west ray for the square b2:
+/// The south-west attack ray for the square b2 (index 9) is represented by
+/// 0x1, which (displayed as a bitboard) looks like this:
 /// ```
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 00000000
-/// 10000000
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 10000000 // 0x01
 /// ```
 ///
 pub static SOUTHWEST_ATTACK_RAYS: [u64; 64] = [
