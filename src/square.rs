@@ -245,7 +245,6 @@ impl Square {
 
 impl From<u8> for Square {
     fn from(v: u8) -> Self {
-        assert!(v < 64);
         Self { square_index: v }
     }
 }
@@ -253,7 +252,7 @@ impl From<u8> for Square {
 impl TryFrom<&str> for Square {
     type Error = &'static str;
 
-    /// Converts values such as 'a1', 'g5', 'c5', etc.
+    /// Converts values such as "a1", "g5", "c5", etc.
     /// into actual [`Square`] that represents that square
     /// on the board.
     fn try_from(value: &str) -> Result<Self, Self::Error> {

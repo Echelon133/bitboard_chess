@@ -92,7 +92,8 @@ impl From<u64> for Bitboard {
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
-    /// Returns bitwise AND of the bits of two bitboards.
+    /// Returns [`Bitboard`] with its bits set to the result of
+    /// the bitwise AND with the other bitboard's bits.
     fn bitand(self, rhs: Bitboard) -> Self::Output {
         Bitboard::from(self.get_bits() & rhs.get_bits())
     }
@@ -100,7 +101,8 @@ impl BitAnd for Bitboard {
 
 impl BitOr for Bitboard {
     type Output = Bitboard;
-    /// Returns bitwise OR of the bits of two bitboards.
+    /// Returns [`Bitboard`] with its bits set to the result of
+    /// the bitwise OR with the other bitboard's bits.
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
     }
@@ -108,7 +110,7 @@ impl BitOr for Bitboard {
 
 impl Shl<u8> for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits shifted left
+    /// Returns [`Bitboard`] with its bits shifted left.
     fn shl(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() << rhs)
     }
@@ -116,7 +118,7 @@ impl Shl<u8> for Bitboard {
 
 impl Shr<u8> for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits shifted right
+    /// Returns [`Bitboard`] with its bits shifted right.
     fn shr(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() >> rhs)
     }
@@ -124,7 +126,7 @@ impl Shr<u8> for Bitboard {
 
 impl Not for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bit negated.
+    /// Returns [`Bitboard`] with its bits negated.
     fn not(self) -> Self::Output {
         Bitboard::from(!self.get_bits())
     }
@@ -132,8 +134,8 @@ impl Not for Bitboard {
 
 impl BitXor for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits XORed
-    /// with another bitboard's bits.
+    /// Returns [`Bitboard`] with its bits set to the result of
+    /// the bitwise XOR with the other bitboard's bits.
     fn bitxor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() ^ rhs.get_bits())
     }

@@ -12,10 +12,22 @@ pub enum Kind {
 }
 
 impl Kind {
+    /// Returns the index of the piece kind.
     pub fn index(&self) -> usize {
         *self as usize
     }
 
+    /// Returns the lowercase ascii character that represents the kind of the piece.
+    ///
+    /// This character is consistent with the way pieces in FEN format are represented.
+    /// This means that:
+    /// - pawn is 'p'
+    /// - rook is 'r'
+    /// - knight is 'n'
+    /// - bishop is 'b'
+    /// - queen is 'q'
+    /// - king is 'k'
+    ///
     pub fn as_char(&self) -> char {
         match self {
             Kind::Pawn => 'p',
@@ -53,6 +65,10 @@ impl TryFrom<usize> for Kind {
 impl TryFrom<char> for Kind {
     type Error = &'static str;
 
+    /// Converts a character into a [`Kind`]. Expected characters
+    /// are consistent with the characters used to represent pieces
+    /// in the FEN format.
+    /// Both lower- and uppercase characters are allowed.
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let kind = match value.to_ascii_lowercase() {
             'p' => Kind::Pawn,

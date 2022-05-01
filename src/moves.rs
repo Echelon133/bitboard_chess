@@ -102,14 +102,11 @@ impl Debug for Move {
 ///
 #[derive(PartialEq, Eq, Hash)]
 pub enum UCIMove {
-    Regular {
-        m: Move,
-    },
+    /// Represents piece moves (including captures, but without pawn promotions),
+    /// castling, en-passant captures.
+    Regular { m: Move },
     /// Represents a move that promotes a pawn.
-    Promotion {
-        m: Move,
-        k: piece::Kind,
-    },
+    Promotion { m: Move, k: piece::Kind },
 }
 
 impl Debug for UCIMove {
