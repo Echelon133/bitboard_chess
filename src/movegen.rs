@@ -54,7 +54,7 @@ use crate::square;
 /// has all squares on the attacked rank lit. This way all of the squares that are not
 /// on the attacked rank are eliminated.
 ///
-fn find_pawn_moves(
+pub fn find_pawn_moves(
     piece_square: square::Square,
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
@@ -233,7 +233,7 @@ fn find_pawn_moves(
 /// That operations only leaves those bits on the attack pattern that represent
 /// either empty squares or squares of the opponent.
 ///
-fn find_knight_moves(
+pub fn find_knight_moves(
     piece_square: square::Square,
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
@@ -271,7 +271,7 @@ fn find_knight_moves(
 /// simply be accessed using the square's index (which is consistent
 /// with the order of attack patterns in KING_ATTACK_PATTERNS).
 ///
-fn find_king_moves(
+pub fn find_king_moves(
     piece_square: square::Square,
     own_color: piece::Color,
     white_taken: &bitboard::Bitboard,
@@ -497,7 +497,7 @@ fn find_file_rank_moves(
 /// is actually a rook. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
 ///
-fn find_rook_moves(
+pub fn find_rook_moves(
     piece_square: square::Square,
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
@@ -550,7 +550,7 @@ fn find_diagonal_moves(
 /// is actually a bishop. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
 ///
-fn find_bishop_moves(
+pub fn find_bishop_moves(
     piece_square: square::Square,
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
@@ -566,7 +566,7 @@ fn find_bishop_moves(
 /// is actually a queen. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
 ///
-fn find_queen_moves(
+pub fn find_queen_moves(
     piece_square: square::Square,
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
