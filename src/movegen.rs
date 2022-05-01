@@ -13,33 +13,27 @@ use crate::square;
 /// Since [`square::Square`] holds the index of the square on the board
 /// (growing left-to-right, bottom-to-top), it's possible to calculate indexes
 /// of squares relative to the square where our pawn is:
-/// - one rank above has index = (index + 8)
-/// - one rank below has index = (index - 8)
-/// - two ranks above index = (index + 16)
-/// - two ranks below index = (index - 16)
-///
-/// This is a safe assumption, since during the game pawns do not occur
-/// on the 1st and 8th rank of the board.
-///
-/// To calculate whether a pawn can be pushed once, a bitboard that contains
-/// information about all taken squares should be shifted by one rank towards the
-/// pawn. To shift all bits of the bitboard by one rank requires a left or right bitshift
-/// by 8. Since the board goes left-to-right, bottom-to-top, shifting right moves
-/// ranks towards the bottom of the board, and shifting left moves ranks towards the top
-/// of the board.
+/// - one rank above has *index = (index + 8)*
+/// - one rank below has *index = (index - 8)*
+/// - two ranks above *index = (index + 16)*
+/// - two ranks below *index = (index - 16)*
 ///
 /// To calculate captures, offsets (+- 7,9) can be used to find squares that are on diagonals
 /// of the pawn square.
 ///
 /// For white:
+/// ```
 /// -  - -  - - - - -
 /// - +7 - +9 - - - -
 /// -  - P  - - - - -
+/// ```
 ///
 /// For black:
+/// ```
 /// -  - -  - - - - -
 /// -  - p  - - - - -
 /// - -9 - -7 - - - -
+/// ```
 ///
 /// If the pawn is on the A or H file, it can only attack one side. Calculating offsets
 /// for pawns on these files does not work exactly as for pawns on other files, because
@@ -50,9 +44,14 @@ use crate::square;
 ///
 /// To only take squares on the attacked rank into account (and eliminate squares that
 /// got set incorrectly due to the index wrap-around) there should be a bitwise AND operation
-/// on the bits of a bitboard that contains the attacked squares and bits of a bitboard that
-/// has all squares on the attacked rank lit. This way all of the squares that are not
+/// on the bits of a bitboard that contains the attacked squares, and the bits of a bitboard that
+/// has all squares on the attacked rank lit. This way all squares that are not
 /// on the attacked rank are eliminated.
+///
+/// # More info
+/// [How to calculate pawn pushes](https://www.chessprogramming.org/Pawn_Pushes_(Bitboards))
+///
+/// [Hot to calculate captures](https://www.chessprogramming.org/Pawn_Attacks_(Bitboards)#Single_Pawn)
 ///
 pub fn find_pawn_moves(
     piece_square: square::Square,
@@ -225,13 +224,17 @@ pub fn find_pawn_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in KNIGHT_ATTACK_PATTERNS).
+/// with the order of attack patterns in [`movegen_constants::KNIGHT_ATTACK_PATTERNS`]).
 ///
 /// The only thing that needs to be done once there is an attack pattern
 /// ready, is to bitwise AND that attack pattern with bitwise NOT of pieces that
 /// have the same color as the knight for which we calculate moves.
-/// That operations only leaves those bits on the attack pattern that represent
+/// That operations only leaves those bits of the attack pattern that represent
 /// either empty squares or squares of the opponent.
+///
+/// # More info
+///
+/// [How to calculate knight moves](https://www.chessprogramming.org/Knight_Pattern)
 ///
 pub fn find_knight_moves(
     piece_square: square::Square,
@@ -269,7 +272,11 @@ pub fn find_knight_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in KING_ATTACK_PATTERNS).
+/// with the order of attack patterns in [`movegen_constants::KING_ATTACK_PATTERNS`]).
+///
+/// # More info
+///
+/// [How to calculate king moves](https://www.chessprogramming.org/King_Pattern)
 ///
 pub fn find_king_moves(
     piece_square: square::Square,
@@ -455,6 +462,8 @@ macro_rules! negative_ray_attack {
 /// on its file or rank.
 /// This can be either a rook or a queen.
 ///
+/// # More info
+///
 /// [How to calculate for positive rays](https://www.chessprogramming.org/Classical_Approach#Conditional)
 ///
 /// [How to calculate for negative rays](https://www.chessprogramming.org/Classical_Approach#Conditional_2)
@@ -511,6 +520,11 @@ pub fn find_rook_moves(
 /// Finds all pseudo-legal moves for a sliding piece that moves
 /// diagonally.
 /// This can be either a bishop or a queen.
+///
+/// # More info
+/// [How to calculate for positive rays](https://www.chessprogramming.org/Classical_Approach#Conditional)
+///
+/// [How to calculate for negative rays](https://www.chessprogramming.org/Classical_Approach#Conditional_2)
 ///
 fn find_diagonal_moves(
     piece_square: square::Square,
@@ -627,8 +641,13 @@ mod tests {
         ($color:ident $square:literal on $board:ident having $context:ident can be moved to $targets:ident) => {
             let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves =
-                $crate::movegen::find_pawn_moves(square, $color, white_taken, black_taken, $context);
+            let found_moves = $crate::movegen::find_pawn_moves(
+                square,
+                $color,
+                white_taken,
+                black_taken,
+                $context,
+            );
             assert_eq!(found_moves.len(), $targets.len());
             let targets = $crate::movegen::tests::extract_targets(&found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
@@ -639,15 +658,25 @@ mod tests {
         ($color:ident $square:literal on $board:ident having $context:ident cannot be moved) => {
             let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves =
-                $crate::movegen::find_pawn_moves(square, $color, white_taken, black_taken, $context);
+            let found_moves = $crate::movegen::find_pawn_moves(
+                square,
+                $color,
+                white_taken,
+                black_taken,
+                $context,
+            );
             assert_eq!(found_moves.len(), 0);
         };
         ($color:ident $square:literal on $board:ident having $context:ident can be promoted on $targets:ident) => {
             let (white_taken, black_taken) = extract_squares_taken($board);
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves =
-                $crate::movegen::find_pawn_moves(square, $color, white_taken, black_taken, $context);
+            let found_moves = $crate::movegen::find_pawn_moves(
+                square,
+                $color,
+                white_taken,
+                black_taken,
+                $context,
+            );
             assert_eq!(found_moves.len(), $targets.len() * 4);
             let mut expected_moves = HashSet::new();
             for m in $targets {
