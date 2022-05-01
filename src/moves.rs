@@ -4,7 +4,7 @@ use crate::piece;
 use crate::square;
 
 /// Represents a move between two squares.
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone, Eq, Hash)]
 pub struct Move {
     start: square::Square,
     target: square::Square,
@@ -100,6 +100,7 @@ impl Debug for Move {
 /// Only promoting moves require additional information, so that it's known what
 /// kind of piece is supposed to appear on the board during pawn promotion.
 ///
+#[derive(PartialEq, Eq, Hash)]
 pub enum UCIMove {
     Regular {
         m: Move,

@@ -1,4 +1,8 @@
-use std::{fmt::Debug, ops::BitOr};
+use std::{
+    fmt::Debug,
+    ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr},
+    u8,
+};
 
 use crate::square;
 
@@ -62,6 +66,22 @@ impl Bitboard {
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
     }
+
+    /// Returns the index of the least significant 1 bit.
+    ///
+    /// To get usable results the user should make sure that
+    /// the bitboard actually has any bits set.
+    pub fn bitscan_forward(&self) -> u8 {
+        u64::trailing_zeros(self.get_bits()) as u8
+    }
+
+    /// Returns the index of the most significant 1 bit.
+    ///
+    /// To get usable results the user should make sure that
+    /// the bitboard actually has any bits set.
+    pub fn bitscan_reverse(&self) -> u8 {
+        (u64::leading_zeros(self.get_bits()) as u8) ^ 63
+    }
 }
 
 impl From<u64> for Bitboard {
@@ -70,11 +90,52 @@ impl From<u64> for Bitboard {
     }
 }
 
-impl BitOr<Self> for Bitboard {
+impl BitAnd for Bitboard {
+    type Output = Bitboard;
+    /// Returns bitwise AND of the bits of two bitboards.
+    fn bitand(self, rhs: Bitboard) -> Self::Output {
+        Bitboard::from(self.get_bits() & rhs.get_bits())
+    }
+}
+
+impl BitOr for Bitboard {
     type Output = Bitboard;
     /// Returns bitwise OR of the bits of two bitboards.
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
+    }
+}
+
+impl Shl<u8> for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits shifted left
+    fn shl(self, rhs: u8) -> Self::Output {
+        Bitboard::from(self.get_bits() << rhs)
+    }
+}
+
+impl Shr<u8> for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits shifted right
+    fn shr(self, rhs: u8) -> Self::Output {
+        Bitboard::from(self.get_bits() >> rhs)
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bit negated.
+    fn not(self) -> Self::Output {
+        Bitboard::from(!self.get_bits())
+    }
+}
+
+impl BitXor for Bitboard {
+    type Output = Bitboard;
+    /// Returns [`Bitboard`] with its bits XORed
+    /// with another bitboard's bits.
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Bitboard::from(self.get_bits() ^ rhs.get_bits())
     }
 }
 
@@ -342,6 +403,37 @@ mod tests {
     }
 
     #[test]
+    fn bitboard_bitand_works() {
+        let mut white_squares = Bitboard::default();
+        // set every white square (so all squares from 0..=63 which have an even index)
+        for index in 0..=63 {
+            if index % 2 == 0 {
+                let square = square::Square::from(index);
+                white_squares.set(square);
+            }
+        }
+
+        let mut black_squares = Bitboard::default();
+        // set every black square (so all squares from 0..=63 which have an odd index)
+        for index in 0..=63 {
+            if index % 2 != 0 {
+                let square = square::Square::from(index);
+                black_squares.set(square);
+            }
+        }
+
+        let bitwise_and_result = white_squares & black_squares;
+        let bitwise_and_self = white_squares & white_squares;
+
+        // bitwise AND when two bitboard have alternating ones and zeroes offset by 1
+        // should result in simply 0, because there is no position where bits are set to 1
+        // in both bitboards
+        assert_eq!(bitwise_and_result.get_bits(), 0);
+        // (white_squares AND white_squares) should result in white_squares
+        assert_eq!(bitwise_and_self.get_bits(), white_squares.get_bits())
+    }
+
+    #[test]
     fn bitboard_bitor_works() {
         let mut white_squares = Bitboard::default();
         // set every white square (so all squares from 0..=63 which have an even index)
@@ -394,5 +486,95 @@ mod tests {
 
         // a result of bitwise OR of the value with itself should be the value itself
         assert_eq!(white_squares, bitwise_or_result);
+    }
+
+    #[test]
+    fn bitboard_shl_works() {
+        let mut white_squares = Bitboard::default();
+        // set a1 square and h7 square on the board
+        white_squares.set(square::Square::try_from("a1").unwrap());
+        white_squares.set(square::Square::try_from("h7").unwrap());
+
+        // this should move a1 to a2, and h7 to h8
+        let shift_left_entire_rank = white_squares << 8;
+
+        let squares_set = shift_left_entire_rank
+            .iter()
+            .collect::<HashSet<square::Square>>();
+
+        assert!(squares_set.contains(&square::Square::try_from("a2").unwrap()));
+        assert!(squares_set.contains(&square::Square::try_from("h8").unwrap()));
+    }
+
+    #[test]
+    fn bitboard_shr_works() {
+        let mut black_squares = Bitboard::default();
+        // set a8 square and h7 square on the board
+        black_squares.set(square::Square::try_from("a8").unwrap());
+        black_squares.set(square::Square::try_from("h7").unwrap());
+
+        // this should move a8 to a7, and h7 to h6
+        let shift_right_entire_rank = black_squares >> 8;
+
+        let squares_set = shift_right_entire_rank
+            .iter()
+            .collect::<HashSet<square::Square>>();
+
+        assert!(squares_set.contains(&square::Square::try_from("a7").unwrap()));
+        assert!(squares_set.contains(&square::Square::try_from("h6").unwrap()));
+    }
+
+    #[test]
+    fn bitboard_bitwise_not_works() {
+        let mut bitboard = Bitboard::default();
+
+        bitboard = !bitboard;
+
+        assert_eq!(bitboard.get_bits(), 0xFFFF_FFFF_FFFF_FFFF);
+    }
+
+    #[test]
+    fn bitboard_bitwise_xor_works() {
+        // all ones
+        let bitboard1 = Bitboard::from(0xFFFF_FFFF_FFFF_FFFF);
+
+        // 0b101010101010101010... pattern
+        let bitboard2 = Bitboard::from(0xAAAA_AAAA_AAAA_AAAA);
+
+        let xor_itself = bitboard1 ^ bitboard1;
+        let xor_alternating = bitboard1 ^ bitboard2;
+
+        assert_eq!(xor_itself.get_bits(), 0);
+        // XOR of repeating ones (1111) and alternating ones (1010) should
+        // result in alternating ones (0101)
+        assert_eq!(xor_alternating.get_bits(), 0x5555_5555_5555_5555);
+    }
+
+    #[test]
+    fn bitboard_bitscan_forward_works() {
+        for square_index in 0..=63 {
+            let square = square::Square::from(square_index);
+            // set the most significant bit for every bitboard
+            // to make sure that the tested method returns
+            // the index of the least sigificant bit that's set to 1
+            let mut bitboard = Bitboard::from(0x8000_0000_0000_0000);
+            bitboard.set(square);
+            let index_of_set_bit = bitboard.bitscan_forward();
+            assert_eq!(square_index, index_of_set_bit);
+        }
+    }
+
+    #[test]
+    fn bitboard_bitscan_reverse_works() {
+        for square_index in 0..=63 {
+            let square = square::Square::from(square_index);
+            // set the least significant bit for every bitboard
+            // to make sure that the tested method returns
+            // the index of the most significant bit that's set to 1
+            let mut bitboard = Bitboard::from(0b1);
+            bitboard.set(square);
+            let index_of_set_bit = bitboard.bitscan_reverse();
+            assert_eq!(square_index, index_of_set_bit);
+        }
     }
 }
