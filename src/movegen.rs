@@ -599,6 +599,7 @@ mod tests {
     use crate::bitboard;
     use crate::board;
     use crate::context;
+    use crate::movegen::*;
     use crate::moves;
     use crate::piece;
     use crate::square;
@@ -2008,5 +2009,224 @@ mod tests {
         let black_board = &board::Board::try_from("8/P2B4/5R2/8/1P1q2P1/8/1K6/3R2N1").unwrap();
         let black = piece::Color::Black;
         check_queen!(black "d4" on black_board can be moved to squares);
+    }
+
+    #[test]
+    fn is_king_in_check_knight_attacks() {
+        // white king always on d5
+        let fens = [
+            "7k/8/8/3K4/1n6/8/8/8", // black knight on b4
+            "7k/8/1n6/3K4/8/8/8/8", // black knight on b6
+            "7k/8/8/3K4/8/2n5/8/8", // black knight on c3
+            "7k/2n5/8/3K4/8/8/8/8", // black knight on c7
+            "7k/8/8/3K4/8/4n3/8/8", // black knight on e3
+            "7k/4n3/8/3K4/8/8/8/8", // black knight on e7
+            "7k/8/8/3K4/5n2/8/8/8", // black knight on f4
+            "7k/8/5n2/3K4/8/8/8/8", // black knight on f6
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on d5
+        let fens = [
+            "7K/8/8/3k4/1N6/8/8/8", // white knight on b4
+            "7K/8/1N6/3k4/8/8/8/8", // white knight on b6
+            "7K/8/8/3k4/8/2N5/8/8", // white knight on c3
+            "7K/2N5/8/3k4/8/8/8/8", // white knight on c7
+            "7K/8/8/3k4/8/4N3/8/8", // white knight on e3
+            "7K/4N3/8/3k4/8/8/8/8", // white knight on e7
+            "7K/8/8/3k4/5N2/8/8/8", // white knight on f4
+            "7K/8/5N2/3k4/8/8/8/8", // white knight on f6
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_rank_and_file_attacks() {
+        // white king always on d4
+        let fens = [
+            "7k/3r4/8/8/3K4/8/8/8", // black rook on d7
+            "7k/8/8/8/3K4/8/8/3r4", // black rook on d1
+            "7k/8/8/8/r2K4/8/8/8",  // black rook on a4
+            "7k/8/8/8/3K3r/8/8/8",  // black rook on h4
+            "7k/3q4/8/8/3K4/8/8/8", // black queen on d7
+            "7k/8/8/8/3K4/8/8/3q4", // black queen on d1
+            "7k/8/8/8/q2K4/8/8/8",  // black queen on a4
+            "7k/8/8/8/3K3q/8/8/8",  // black queen on h4
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on d4
+        let fens = [
+            "7K/3R4/8/8/3k4/8/8/8", // white rook on d7
+            "7K/8/8/8/3k4/8/8/3R4", // white rook on d1
+            "7K/8/8/8/R2k4/8/8/8",  // white rook on a4
+            "7K/8/8/8/3k3R/8/8/8",  // white rook on h4
+            "7K/3Q4/8/8/3k4/8/8/8", // white queen on d7
+            "7K/8/8/8/3k4/8/8/3Q4", // white queen on d1
+            "7K/8/8/8/Q2k4/8/8/8",  // white queen on a4
+            "7K/8/8/8/3k3Q/8/8/8",  // white queen on h4
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_diagonal_attacks() {
+        // white king always on e4
+        let fens = [
+            "b6k/8/8/8/4K3/8/8/8",  // black bishop on a8
+            "7k/8/8/8/4K3/8/8/1b6", // black bishop on b1
+            "7k/8/8/8/4K3/8/8/7b",  // black bishop on h1
+            "7k/7b/8/8/4K3/8/8/8",  // black bishop on h7
+            "q6k/8/8/8/4K3/8/8/8",  // black queen o a8
+            "7k/8/8/8/4K3/8/8/1q6", // black queen on b1
+            "7k/8/8/8/4K3/8/8/7q",  // black queen on h1
+            "7k/7q/8/8/4K3/8/8/8",  // black queen on h7
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on e4
+        let fens = [
+            "B6K/8/8/8/4k3/8/8/8",  // white bishop on a8
+            "7K/8/8/8/4k3/8/8/1B6", // white bishop on b1
+            "7K/8/8/8/4k3/8/8/7B",  // white bishop on h1
+            "7K/7B/8/8/4k3/8/8/8",  // white bishop on h7
+            "Q6K/8/8/8/4k3/8/8/8",  // white queen o a8
+            "7K/8/8/8/4k3/8/8/1Q6", // white queen on b1
+            "7K/8/8/8/4k3/8/8/7Q",  // white queen on h1
+            "7K/7Q/8/8/4k3/8/8/8",  // white queen on h7
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_king_attacks() {
+        // white king on d5
+        let fens = [
+            "8/8/8/8/4K3/3k4/8/8", // black king on d3
+            "8/8/8/8/3kK3/8/8/8",  // black king on d4
+            "8/8/8/3k4/4K3/8/8/8", // black king on d5
+            "8/8/8/8/4K3/4k3/8/8", // black king on e3
+            "8/8/8/4k3/4K3/8/8/8", // black king on e5
+            "8/8/8/8/4K3/5k2/8/8", // black king on f3
+            "8/8/8/8/4Kk2/8/8/8",  // black king on f4
+            "8/8/8/5k2/4K3/8/8/8", // black king on f5
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king on d5
+        let fens = [
+            "8/8/8/8/4k3/3K4/8/8", // white king on d3
+            "8/8/8/8/3Kk3/8/8/8",  // white king on d4
+            "8/8/8/3K4/4k3/8/8/8", // white king on d5
+            "8/8/8/8/4k3/4K3/8/8", // white king on e3
+            "8/8/8/4K3/4k3/8/8/8", // white king on e5
+            "8/8/8/8/4k3/5K2/8/8", // white king on f3
+            "8/8/8/8/4kK2/8/8/8",  // white king on f4
+            "8/8/8/5K2/4k3/8/8/8", // white king on f5
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_pawn_attacks() {
+        // white king getting checked
+        let fens = [
+            "8/8/8/5k2/8/8/p7/1K6",
+            "8/8/8/5k2/8/8/2p5/1K6",
+            "8/8/8/5k2/8/8/7p/6K1",
+            "8/8/8/5k2/8/8/5p2/6K1",
+            "2p5/1K6/8/5k2/8/8/8/8",
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king getting checked
+        let fens = [
+            "6k1/7P/8/8/8/8/8/K7",
+            "6k1/5P2/8/8/8/8/8/K7",
+            "1k6/2P5/8/8/8/8/8/K7",
+            "1k6/P7/8/8/8/8/8/K7",
+            "8/8/8/3k4/2P5/8/8/K7",
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_blocked_attacks() {
+        //use std::env;
+        //env::set_var("RUST_BACKTRACE", "1");
+
+        // white kings getting attacked through other blocking pieces
+        let fens = [
+            "rnb1kbnr/pppp1ppp/8/4p3/4P2q/3P4/PPP2PPP/RNBQKBNR", // blocked by pawn
+            "8/5K2/8/5B2/1k6/8/5r2/8",                           // blocked by bishop
+            "8/1q2PK2/8/8/1k6/8/8/8",                            // blocked by pawn
+        ];
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(!is_king_in_check(white, &board));
+        }
+
+        // black kings getting attacked through other blocking pieces
+        let fens = [
+            "rnbqkbnr/pppp1ppp/8/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR", // blocked by pawn
+            "8/5k2/8/5b2/1K6/8/5R2/8",                           // blocked by bishop
+            "8/1Q2pk2/8/8/1K6/8/8/8",                            // blocked by pawn
+        ];
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(!is_king_in_check(black, &board));
+        }
     }
 }
