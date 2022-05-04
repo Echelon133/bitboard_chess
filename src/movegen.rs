@@ -1,6 +1,7 @@
 use crate::bitboard;
+use crate::board;
 use crate::context;
-use crate::movegen_constants;
+use crate::movegen_constants::*;
 use crate::moves;
 use crate::piece;
 use crate::square;
@@ -224,7 +225,7 @@ pub fn find_pawn_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`movegen_constants::KNIGHT_ATTACK_PATTERNS`]).
+/// with the order of attack patterns in [`KNIGHT_ATTACK_PATTERNS`]).
 ///
 /// The only thing that needs to be done once there is an attack pattern
 /// ready, is to bitwise AND that attack pattern with bitwise NOT of pieces that
@@ -252,8 +253,7 @@ pub fn find_knight_moves(
     // retrieve a precalculated knight attack pattern and make a bitboard using
     // all bits of that pattern
     let index = piece_square.get_index();
-    let attack_bitboard =
-        bitboard::Bitboard::from(movegen_constants::KNIGHT_ATTACK_PATTERNS[index]);
+    let attack_bitboard = bitboard::Bitboard::from(KNIGHT_ATTACK_PATTERNS[index]);
     // only attack squares where there are no pieces the same color as the knight
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
@@ -272,7 +272,7 @@ pub fn find_knight_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`movegen_constants::KING_ATTACK_PATTERNS`]).
+/// with the order of attack patterns in [`KING_ATTACK_PATTERNS`]).
 ///
 /// # More info
 ///
@@ -297,7 +297,7 @@ pub fn find_king_moves(
     // retrieve a precalculated king attack pattern and make a bitboard using
     // all bits of that pattern
     let index = piece_square.get_index();
-    let attack_bitboard = bitboard::Bitboard::from(movegen_constants::KING_ATTACK_PATTERNS[index]);
+    let attack_bitboard = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
     // only attack squares where there are no pieces with the same color as the king
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
@@ -483,15 +483,10 @@ fn find_file_rank_moves(
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    let north_attack_rays = movegen_constants::NORTH_ATTACK_RAYS;
-    let south_attack_rays = movegen_constants::SOUTH_ATTACK_RAYS;
-    let east_attack_rays = movegen_constants::EAST_ATTACK_RAYS;
-    let west_attack_rays = movegen_constants::WEST_ATTACK_RAYS;
-
-    let north_attack = positive_ray_attack!(north_attack_rays, own_pieces, all_taken, index);
-    let south_attack = negative_ray_attack!(south_attack_rays, own_pieces, all_taken, index);
-    let east_attack = positive_ray_attack!(east_attack_rays, own_pieces, all_taken, index);
-    let west_attack = negative_ray_attack!(west_attack_rays, own_pieces, all_taken, index);
+    let north_attack = positive_ray_attack!(NORTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let south_attack = negative_ray_attack!(SOUTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let east_attack = positive_ray_attack!(EAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let west_attack = negative_ray_attack!(WEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north, south, east and west
     let all_attacks = north_attack | south_attack | east_attack | west_attack;
@@ -541,15 +536,10 @@ fn find_diagonal_moves(
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    let ne_attack_rays = movegen_constants::NORTHEAST_ATTACK_RAYS;
-    let se_attack_rays = movegen_constants::SOUTHEAST_ATTACK_RAYS;
-    let nw_attack_rays = movegen_constants::NORTHWEST_ATTACK_RAYS;
-    let sw_attack_rays = movegen_constants::SOUTHWEST_ATTACK_RAYS;
-
-    let ne_attack = positive_ray_attack!(ne_attack_rays, own_pieces, all_taken, index);
-    let se_attack = negative_ray_attack!(se_attack_rays, own_pieces, all_taken, index);
-    let nw_attack = positive_ray_attack!(nw_attack_rays, own_pieces, all_taken, index);
-    let sw_attack = negative_ray_attack!(sw_attack_rays, own_pieces, all_taken, index);
+    let ne_attack = positive_ray_attack!(NORTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let se_attack = negative_ray_attack!(SOUTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let nw_attack = positive_ray_attack!(NORTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let sw_attack = negative_ray_attack!(SOUTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north-east, north-west, south-east and south-west
     let all_attacks = nw_attack | ne_attack | sw_attack | se_attack;
