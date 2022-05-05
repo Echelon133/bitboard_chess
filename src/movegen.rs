@@ -1,6 +1,7 @@
 use crate::bitboard;
+use crate::board;
 use crate::context;
-use crate::movegen_constants;
+use crate::movegen_constants::*;
 use crate::moves;
 use crate::piece;
 use crate::square;
@@ -224,7 +225,7 @@ pub fn find_pawn_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`movegen_constants::KNIGHT_ATTACK_PATTERNS`]).
+/// with the order of attack patterns in [`KNIGHT_ATTACK_PATTERNS`]).
 ///
 /// The only thing that needs to be done once there is an attack pattern
 /// ready, is to bitwise AND that attack pattern with bitwise NOT of pieces that
@@ -252,8 +253,7 @@ pub fn find_knight_moves(
     // retrieve a precalculated knight attack pattern and make a bitboard using
     // all bits of that pattern
     let index = piece_square.get_index();
-    let attack_bitboard =
-        bitboard::Bitboard::from(movegen_constants::KNIGHT_ATTACK_PATTERNS[index]);
+    let attack_bitboard = bitboard::Bitboard::from(KNIGHT_ATTACK_PATTERNS[index]);
     // only attack squares where there are no pieces the same color as the knight
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
@@ -272,7 +272,7 @@ pub fn find_knight_moves(
 /// This implementation uses precalculated attack patterns, so that
 /// instead of calculating them on-the-fly every call, they can
 /// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`movegen_constants::KING_ATTACK_PATTERNS`]).
+/// with the order of attack patterns in [`KING_ATTACK_PATTERNS`]).
 ///
 /// # More info
 ///
@@ -297,7 +297,7 @@ pub fn find_king_moves(
     // retrieve a precalculated king attack pattern and make a bitboard using
     // all bits of that pattern
     let index = piece_square.get_index();
-    let attack_bitboard = bitboard::Bitboard::from(movegen_constants::KING_ATTACK_PATTERNS[index]);
+    let attack_bitboard = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
     // only attack squares where there are no pieces with the same color as the king
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
@@ -483,15 +483,10 @@ fn find_file_rank_moves(
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    let north_attack_rays = movegen_constants::NORTH_ATTACK_RAYS;
-    let south_attack_rays = movegen_constants::SOUTH_ATTACK_RAYS;
-    let east_attack_rays = movegen_constants::EAST_ATTACK_RAYS;
-    let west_attack_rays = movegen_constants::WEST_ATTACK_RAYS;
-
-    let north_attack = positive_ray_attack!(north_attack_rays, own_pieces, all_taken, index);
-    let south_attack = negative_ray_attack!(south_attack_rays, own_pieces, all_taken, index);
-    let east_attack = positive_ray_attack!(east_attack_rays, own_pieces, all_taken, index);
-    let west_attack = negative_ray_attack!(west_attack_rays, own_pieces, all_taken, index);
+    let north_attack = positive_ray_attack!(NORTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let south_attack = negative_ray_attack!(SOUTH_ATTACK_RAYS, own_pieces, all_taken, index);
+    let east_attack = positive_ray_attack!(EAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let west_attack = negative_ray_attack!(WEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north, south, east and west
     let all_attacks = north_attack | south_attack | east_attack | west_attack;
@@ -541,15 +536,10 @@ fn find_diagonal_moves(
     let all_taken = *white_taken | *black_taken;
     let index = piece_square.get_index();
 
-    let ne_attack_rays = movegen_constants::NORTHEAST_ATTACK_RAYS;
-    let se_attack_rays = movegen_constants::SOUTHEAST_ATTACK_RAYS;
-    let nw_attack_rays = movegen_constants::NORTHWEST_ATTACK_RAYS;
-    let sw_attack_rays = movegen_constants::SOUTHWEST_ATTACK_RAYS;
-
-    let ne_attack = positive_ray_attack!(ne_attack_rays, own_pieces, all_taken, index);
-    let se_attack = negative_ray_attack!(se_attack_rays, own_pieces, all_taken, index);
-    let nw_attack = positive_ray_attack!(nw_attack_rays, own_pieces, all_taken, index);
-    let sw_attack = negative_ray_attack!(sw_attack_rays, own_pieces, all_taken, index);
+    let ne_attack = positive_ray_attack!(NORTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let se_attack = negative_ray_attack!(SOUTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let nw_attack = positive_ray_attack!(NORTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
+    let sw_attack = negative_ray_attack!(SOUTHWEST_ATTACK_RAYS, own_pieces, all_taken, index);
 
     // sum all attacked squares from north-east, north-west, south-east and south-west
     let all_attacks = nw_attack | ne_attack | sw_attack | se_attack;
@@ -592,6 +582,258 @@ pub fn find_queen_moves(
     moves
 }
 
+/// Generates code that checks whether a positive ray cast from the king's square
+/// hits an unblocked piece that attacks the king.
+/// 
+/// # How it works - an example
+/// 
+/// If there is a white king on e4, and there is an unobstructed path north, where 
+/// either a black rook or queen occupies some square, that rook/queen certainly attacks 
+/// the king.
+///
+/// ```compile_fail 
+/// let all_taken: bitboard::Bitboard = /* get all taken */;
+/// let enemy_rooks_queens: bitboard::Bitboard = 
+///     /* calculate all enemy rooks and queens squares */;
+/// let king_index = square::Square::try_from("e4").unwrap().get_index();
+/// let is_in_check = positive_ray_attacks_king!(
+///     NORTH_ATTACK_RAYS, 
+///     all_taken, 
+///     enemy_rooks_queens,
+///     king_index);
+/// ```
+///
+/// # Arguments
+/// 
+/// First argument should always contain a reference to an array of positive rays. These are:
+/// - [`NORTH_ATTACK_RAYS`] (when handling rooks/queens)
+/// - [`EAST_ATTACK_RAYS`] (when handling rooks/queens)
+/// - [`NORTHEAST_ATTACK_RAYS`] (when handling bishops/queens)
+/// - [`NORTHWEST_ATTACK_RAYS`] (when handling bishops/queens)
+/// 
+/// Second argument should contain a [`bitboard::Bitboard`] that stores all squares that are
+/// occupied on the board. 
+///
+/// Third argument should contain a [`bitboard::Bitboard`] that stores all squares occupied
+/// by enemy:
+/// - rooks and queens if [`NORTH_ATTACK_RAYS`] or [`EAST_ATTACK_RAYS`] 
+///     was given as the first argument
+/// - bishops and queens if either [`NORTHWEST_ATTACK_RAYS`] or
+/// [`NORTHEAST_ATTACK_RAYS`] was given as the first argument
+///
+/// Last argument should contain the index of the square occupied by the king.
+///
+macro_rules! positive_ray_attacks_king {
+    ($rays:ident, $all_taken:ident, $enemy_attacking_pieces:ident, $index:expr) => {{
+        let attack = $crate::bitboard::Bitboard::from($rays[$index]);
+        let blocker = attack & $all_taken;
+        if blocker.count_set() != 0 {
+            let blocker_index = blocker.bitscan_forward();
+            let blocker_square = $crate::square::Square::from(blocker_index as u8);
+            if $enemy_attacking_pieces.is_set(blocker_square) {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }};
+}
+
+/// Generates code that checks whether a negative ray cast from the king's square
+/// hits an unblocked piece that attacks the king.
+/// 
+/// # How it works - an example
+/// 
+/// If there is a white king on e4, and there is an unobstructed path south, where 
+/// either a black rook or queen occupies some square, that rook/queen certainly attacks 
+/// the king.
+///
+/// ```compile_fail 
+/// let all_taken: bitboard::Bitboard = /* get all taken */;
+/// let enemy_rooks_queens: bitboard::Bitboard = 
+///     /* calculate all enemy rooks and queens squares */;
+/// let king_index = square::Square::try_from("e4").unwrap().get_index();
+/// let is_in_check = positive_ray_attacks_king!(
+///     SOUTH_ATTACK_RAYS, 
+///     all_taken, 
+///     enemy_rooks_queens,
+///     king_index);
+/// ```
+///
+/// # Arguments
+/// 
+/// First argument should always contain a reference to an array of negative rays. These are:
+/// - [`SOUTH_ATTACK_RAYS`] (when handling rooks/queens)
+/// - [`WEST_ATTACK_RAYS`] (when handling rooks/queens)
+/// - [`SOUTHEAST_ATTACK_RAYS`] (when handling bishops/queens)
+/// - [`SOUTHWEST_ATTACK_RAYS`] (when handling bishops/queens)
+/// 
+/// Second argument should contain a [`bitboard::Bitboard`] that stores all squares that are
+/// occupied on the board. 
+///
+/// Third argument should contain a [`bitboard::Bitboard`] that stores all squares occupied
+/// by enemy:
+/// - rooks and queens if [`SOUTH_ATTACK_RAYS`] or [`WEST_ATTACK_RAYS`] 
+///     was given as the first argument
+/// - bishops and queens if either [`SOUTHWEST_ATTACK_RAYS`] or
+/// [`SOUTHEAST_ATTACK_RAYS`] was given as the first argument
+///
+/// Last argument should contain the index of the square occupied by the king.
+///
+macro_rules! negative_ray_attacks_king {
+    ($rays:ident, $all_taken:ident, $enemy_attacking_pieces:ident, $index:expr) => {{
+        let attack = $crate::bitboard::Bitboard::from($rays[$index]);
+        let blocker = attack & $all_taken;
+        if blocker.count_set() != 0 {
+            let blocker_index = blocker.bitscan_reverse();
+            let blocker_square = $crate::square::Square::from(blocker_index as u8);
+            if $enemy_attacking_pieces.is_set(blocker_square) {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }};
+}
+
+/// Checks if the king of particular color is in check on the given [`board::Board`].
+///
+/// This function backtraces from the king's position to find any unblocked enemy pieces,
+/// then it checks whether the found piece's moveset allows it to attack the king.
+///
+/// # Panics
+/// This function panics if there is no king of the given color on the board.
+#[inline(always)]
+pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool {
+    let king_piece = piece::Piece::new(piece::Kind::King, king_color);
+    // expect the king to ALWAYS be on the board
+    let king_square = board.get_piece_bitboard(&king_piece).iter().next().unwrap();
+    let index = king_square.get_index();
+
+    let enemy_color = match king_color {
+        piece::Color::White => piece::Color::Black,
+        piece::Color::Black => piece::Color::White,
+    };
+
+    let (own_taken, enemy_taken) = match king_color {
+        piece::Color::White => (
+            board.get_squares_taken(piece::Color::White),
+            board.get_squares_taken(piece::Color::Black),
+        ),
+        piece::Color::Black => (
+            board.get_squares_taken(piece::Color::Black),
+            board.get_squares_taken(piece::Color::White),
+        ),
+    };
+
+    let all_taken = *own_taken | *enemy_taken;
+
+    // =================CHECK ENEMY KNIGHTS ============================
+    let knight_piece = piece::Piece::new(piece::Kind::Knight, enemy_color);
+    let enemy_knights = *board.get_piece_bitboard(&knight_piece);
+    // find all squares around the king from which enemy knights could attack
+    let knight_backward_attack = bitboard::Bitboard::from(KNIGHT_ATTACK_PATTERNS[index]);
+    // if there is even a single common bit between knight_backward_attack and enemy_knights,
+    // it means that the king is in check
+    let knight_backward_attack = knight_backward_attack & enemy_knights;
+    if knight_backward_attack.count_set() != 0 {
+        return true;
+    }
+
+    // =================CHECK FILES AND RANKS ============================
+    let queen_piece = piece::Piece::new(piece::Kind::Queen, enemy_color);
+    let rook_piece = piece::Piece::new(piece::Kind::Rook, enemy_color);
+    // create a bitboard that holds info where enemy rooks and queens are, because these
+    // are the pieces that can attack the king on files and ranks
+    let enemy_rooks_queens =
+        *board.get_piece_bitboard(&queen_piece) | *board.get_piece_bitboard(&rook_piece);
+
+    // if the king can be attacked by rook/queen from north/south/east/west, it means
+    // that it's in check
+    if positive_ray_attacks_king!(NORTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || negative_ray_attacks_king!(SOUTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || positive_ray_attacks_king!(EAST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || negative_ray_attacks_king!(WEST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+    {
+        return true;
+    }
+
+    // ================= CHECK DIAGONALS ============================
+    let bishop_piece = piece::Piece::new(piece::Kind::Bishop, enemy_color);
+    // create a bitboard that holds info where enemy bishops and queens are, because these
+    // are the pieces that can attack the king on diagonals
+    let enemy_diagonals =
+        *board.get_piece_bitboard(&queen_piece) | *board.get_piece_bitboard(&bishop_piece);
+
+    // if the king can be attacked by bishop/queen from north-east/north-west/south-east/south-west
+    // then it means that it's in check
+    if positive_ray_attacks_king!(NORTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || positive_ray_attacks_king!(NORTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || negative_ray_attacks_king!(SOUTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || negative_ray_attacks_king!(SOUTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+    {
+        return true;
+    }
+
+    // ================= CHECK KINGS ============================
+    let king_piece = piece::Piece::new(piece::Kind::King, enemy_color);
+    let enemy_kings = *board.get_piece_bitboard(&king_piece);
+    // find all squares which the king attacks
+    let king_attack = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
+    // if there is even a single common bit between king_attack and enemy_kings,
+    // it means that the king is in check
+    let king_attack = king_attack & enemy_kings;
+    if king_attack.count_set() != 0 {
+        return true;
+    }
+
+    // ================= CHECK PAWNS ============================
+    let pawn_piece = piece::Piece::new(piece::Kind::Pawn, enemy_color);
+    let enemy_pawns = *board.get_piece_bitboard(&pawn_piece);
+
+    let king_file = king_square.get_file();
+    // kings can only be attacked by pawns on their diagonals if:
+    // - they are white and pawns are one rank above (closer to the 8th rank)
+    // - they are black and pawns are one rank below (closer to the 1st rank)
+    //
+    // if the king is on the A file or H file, one diagonal simply does not exist
+    if king_file != square::File::A {
+        let left_square_index = match king_color {
+            piece::Color::White => index + 7,
+            piece::Color::Black => index - 9,
+        };
+        // check if the left square is not above/below the board's boundaries
+        if (0..=63).contains(&left_square_index) {
+            let left_square = square::Square::from(left_square_index as u8);
+            if enemy_pawns.is_set(left_square) {
+                return true;
+            }
+        }
+    }
+
+    if king_file != square::File::H {
+        let right_square_index = match king_color {
+            piece::Color::White => index + 9,
+            piece::Color::Black => index - 7,
+        };
+
+        // check if the right square is not above/below the board's boundaries
+        if (0..=63).contains(&right_square_index) {
+            let right_square = square::Square::from(right_square_index as u8);
+            if enemy_pawns.is_set(right_square) {
+                return true;
+            }
+        }
+    }
+
+    // if there is not a single piece that attacks the king, the king is not in check
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -599,6 +841,7 @@ mod tests {
     use crate::bitboard;
     use crate::board;
     use crate::context;
+    use crate::movegen::*;
     use crate::moves;
     use crate::piece;
     use crate::square;
@@ -2008,5 +2251,224 @@ mod tests {
         let black_board = &board::Board::try_from("8/P2B4/5R2/8/1P1q2P1/8/1K6/3R2N1").unwrap();
         let black = piece::Color::Black;
         check_queen!(black "d4" on black_board can be moved to squares);
+    }
+
+    #[test]
+    fn is_king_in_check_knight_attacks() {
+        // white king always on d5
+        let fens = [
+            "7k/8/8/3K4/1n6/8/8/8", // black knight on b4
+            "7k/8/1n6/3K4/8/8/8/8", // black knight on b6
+            "7k/8/8/3K4/8/2n5/8/8", // black knight on c3
+            "7k/2n5/8/3K4/8/8/8/8", // black knight on c7
+            "7k/8/8/3K4/8/4n3/8/8", // black knight on e3
+            "7k/4n3/8/3K4/8/8/8/8", // black knight on e7
+            "7k/8/8/3K4/5n2/8/8/8", // black knight on f4
+            "7k/8/5n2/3K4/8/8/8/8", // black knight on f6
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on d5
+        let fens = [
+            "7K/8/8/3k4/1N6/8/8/8", // white knight on b4
+            "7K/8/1N6/3k4/8/8/8/8", // white knight on b6
+            "7K/8/8/3k4/8/2N5/8/8", // white knight on c3
+            "7K/2N5/8/3k4/8/8/8/8", // white knight on c7
+            "7K/8/8/3k4/8/4N3/8/8", // white knight on e3
+            "7K/4N3/8/3k4/8/8/8/8", // white knight on e7
+            "7K/8/8/3k4/5N2/8/8/8", // white knight on f4
+            "7K/8/5N2/3k4/8/8/8/8", // white knight on f6
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_rank_and_file_attacks() {
+        // white king always on d4
+        let fens = [
+            "7k/3r4/8/8/3K4/8/8/8", // black rook on d7
+            "7k/8/8/8/3K4/8/8/3r4", // black rook on d1
+            "7k/8/8/8/r2K4/8/8/8",  // black rook on a4
+            "7k/8/8/8/3K3r/8/8/8",  // black rook on h4
+            "7k/3q4/8/8/3K4/8/8/8", // black queen on d7
+            "7k/8/8/8/3K4/8/8/3q4", // black queen on d1
+            "7k/8/8/8/q2K4/8/8/8",  // black queen on a4
+            "7k/8/8/8/3K3q/8/8/8",  // black queen on h4
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on d4
+        let fens = [
+            "7K/3R4/8/8/3k4/8/8/8", // white rook on d7
+            "7K/8/8/8/3k4/8/8/3R4", // white rook on d1
+            "7K/8/8/8/R2k4/8/8/8",  // white rook on a4
+            "7K/8/8/8/3k3R/8/8/8",  // white rook on h4
+            "7K/3Q4/8/8/3k4/8/8/8", // white queen on d7
+            "7K/8/8/8/3k4/8/8/3Q4", // white queen on d1
+            "7K/8/8/8/Q2k4/8/8/8",  // white queen on a4
+            "7K/8/8/8/3k3Q/8/8/8",  // white queen on h4
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_diagonal_attacks() {
+        // white king always on e4
+        let fens = [
+            "b6k/8/8/8/4K3/8/8/8",  // black bishop on a8
+            "7k/8/8/8/4K3/8/8/1b6", // black bishop on b1
+            "7k/8/8/8/4K3/8/8/7b",  // black bishop on h1
+            "7k/7b/8/8/4K3/8/8/8",  // black bishop on h7
+            "q6k/8/8/8/4K3/8/8/8",  // black queen o a8
+            "7k/8/8/8/4K3/8/8/1q6", // black queen on b1
+            "7k/8/8/8/4K3/8/8/7q",  // black queen on h1
+            "7k/7q/8/8/4K3/8/8/8",  // black queen on h7
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king always on e4
+        let fens = [
+            "B6K/8/8/8/4k3/8/8/8",  // white bishop on a8
+            "7K/8/8/8/4k3/8/8/1B6", // white bishop on b1
+            "7K/8/8/8/4k3/8/8/7B",  // white bishop on h1
+            "7K/7B/8/8/4k3/8/8/8",  // white bishop on h7
+            "Q6K/8/8/8/4k3/8/8/8",  // white queen o a8
+            "7K/8/8/8/4k3/8/8/1Q6", // white queen on b1
+            "7K/8/8/8/4k3/8/8/7Q",  // white queen on h1
+            "7K/7Q/8/8/4k3/8/8/8",  // white queen on h7
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_king_attacks() {
+        // white king on d5
+        let fens = [
+            "8/8/8/8/4K3/3k4/8/8", // black king on d3
+            "8/8/8/8/3kK3/8/8/8",  // black king on d4
+            "8/8/8/3k4/4K3/8/8/8", // black king on d5
+            "8/8/8/8/4K3/4k3/8/8", // black king on e3
+            "8/8/8/4k3/4K3/8/8/8", // black king on e5
+            "8/8/8/8/4K3/5k2/8/8", // black king on f3
+            "8/8/8/8/4Kk2/8/8/8",  // black king on f4
+            "8/8/8/5k2/4K3/8/8/8", // black king on f5
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king on d5
+        let fens = [
+            "8/8/8/8/4k3/3K4/8/8", // white king on d3
+            "8/8/8/8/3Kk3/8/8/8",  // white king on d4
+            "8/8/8/3K4/4k3/8/8/8", // white king on d5
+            "8/8/8/8/4k3/4K3/8/8", // white king on e3
+            "8/8/8/4K3/4k3/8/8/8", // white king on e5
+            "8/8/8/8/4k3/5K2/8/8", // white king on f3
+            "8/8/8/8/4kK2/8/8/8",  // white king on f4
+            "8/8/8/5K2/4k3/8/8/8", // white king on f5
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_pawn_attacks() {
+        // white king getting checked
+        let fens = [
+            "8/8/8/5k2/8/8/p7/1K6",
+            "8/8/8/5k2/8/8/2p5/1K6",
+            "8/8/8/5k2/8/8/7p/6K1",
+            "8/8/8/5k2/8/8/5p2/6K1",
+            "2p5/1K6/8/5k2/8/8/8/8",
+        ];
+
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(white, &board));
+        }
+
+        // black king getting checked
+        let fens = [
+            "6k1/7P/8/8/8/8/8/K7",
+            "6k1/5P2/8/8/8/8/8/K7",
+            "1k6/2P5/8/8/8/8/8/K7",
+            "1k6/P7/8/8/8/8/8/K7",
+            "8/8/8/3k4/2P5/8/8/K7",
+        ];
+
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn is_king_in_check_blocked_attacks() {
+        //use std::env;
+        //env::set_var("RUST_BACKTRACE", "1");
+
+        // white kings getting attacked through other blocking pieces
+        let fens = [
+            "rnb1kbnr/pppp1ppp/8/4p3/4P2q/3P4/PPP2PPP/RNBQKBNR", // blocked by pawn
+            "8/5K2/8/5B2/1k6/8/5r2/8",                           // blocked by bishop
+            "8/1q2PK2/8/8/1k6/8/8/8",                            // blocked by pawn
+        ];
+        let white = piece::Color::White;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(!is_king_in_check(white, &board));
+        }
+
+        // black kings getting attacked through other blocking pieces
+        let fens = [
+            "rnbqkbnr/pppp1ppp/8/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR", // blocked by pawn
+            "8/5k2/8/5b2/1K6/8/5R2/8",                           // blocked by bishop
+            "8/1Q2pk2/8/8/1K6/8/8/8",                            // blocked by pawn
+        ];
+        let black = piece::Color::Black;
+        for fen in fens {
+            let board = board::Board::try_from(fen).unwrap();
+            assert!(!is_king_in_check(black, &board));
+        }
     }
 }
