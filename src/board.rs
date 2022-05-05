@@ -130,7 +130,7 @@ impl Board {
 
     /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`].
     #[inline(always)]
-    fn get_piece_bitboard(&self, piece: &piece::Piece) -> &bitboard::Bitboard {
+    pub fn get_piece_bitboard(&self, piece: &piece::Piece) -> &bitboard::Bitboard {
         let piece_array = match piece.get_color() {
             piece::Color::White => &self.white_pieces,
             piece::Color::Black => &self.black_pieces,
