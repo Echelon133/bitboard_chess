@@ -584,39 +584,39 @@ pub fn find_queen_moves(
 
 /// Generates code that checks whether a positive ray cast from the king's square
 /// hits an unblocked piece that attacks the king.
-/// 
+///
 /// # How it works - an example
-/// 
-/// If there is a white king on e4, and there is an unobstructed path north, where 
-/// either a black rook or queen occupies some square, that rook/queen certainly attacks 
+///
+/// If there is a white king on e4, and there is an unobstructed path north, where
+/// either a black rook or queen occupies some square, that rook/queen certainly attacks
 /// the king.
 ///
-/// ```compile_fail 
+/// ```compile_fail
 /// let all_taken: bitboard::Bitboard = /* get all taken */;
-/// let enemy_rooks_queens: bitboard::Bitboard = 
+/// let enemy_rooks_queens: bitboard::Bitboard =
 ///     /* calculate all enemy rooks and queens squares */;
 /// let king_index = square::Square::try_from("e4").unwrap().get_index();
 /// let is_in_check = positive_ray_attacks_king!(
-///     NORTH_ATTACK_RAYS, 
-///     all_taken, 
+///     NORTH_ATTACK_RAYS,
+///     all_taken,
 ///     enemy_rooks_queens,
 ///     king_index);
 /// ```
 ///
 /// # Arguments
-/// 
+///
 /// First argument should always contain a reference to an array of positive rays. These are:
 /// - [`NORTH_ATTACK_RAYS`] (when handling rooks/queens)
 /// - [`EAST_ATTACK_RAYS`] (when handling rooks/queens)
 /// - [`NORTHEAST_ATTACK_RAYS`] (when handling bishops/queens)
 /// - [`NORTHWEST_ATTACK_RAYS`] (when handling bishops/queens)
-/// 
+///
 /// Second argument should contain a [`bitboard::Bitboard`] that stores all squares that are
-/// occupied on the board. 
+/// occupied on the board.
 ///
 /// Third argument should contain a [`bitboard::Bitboard`] that stores all squares occupied
 /// by enemy:
-/// - rooks and queens if [`NORTH_ATTACK_RAYS`] or [`EAST_ATTACK_RAYS`] 
+/// - rooks and queens if [`NORTH_ATTACK_RAYS`] or [`EAST_ATTACK_RAYS`]
 ///     was given as the first argument
 /// - bishops and queens if either [`NORTHWEST_ATTACK_RAYS`] or
 /// [`NORTHEAST_ATTACK_RAYS`] was given as the first argument
@@ -643,39 +643,39 @@ macro_rules! positive_ray_attacks_king {
 
 /// Generates code that checks whether a negative ray cast from the king's square
 /// hits an unblocked piece that attacks the king.
-/// 
+///
 /// # How it works - an example
-/// 
-/// If there is a white king on e4, and there is an unobstructed path south, where 
-/// either a black rook or queen occupies some square, that rook/queen certainly attacks 
+///
+/// If there is a white king on e4, and there is an unobstructed path south, where
+/// either a black rook or queen occupies some square, that rook/queen certainly attacks
 /// the king.
 ///
-/// ```compile_fail 
+/// ```compile_fail
 /// let all_taken: bitboard::Bitboard = /* get all taken */;
-/// let enemy_rooks_queens: bitboard::Bitboard = 
+/// let enemy_rooks_queens: bitboard::Bitboard =
 ///     /* calculate all enemy rooks and queens squares */;
 /// let king_index = square::Square::try_from("e4").unwrap().get_index();
 /// let is_in_check = positive_ray_attacks_king!(
-///     SOUTH_ATTACK_RAYS, 
-///     all_taken, 
+///     SOUTH_ATTACK_RAYS,
+///     all_taken,
 ///     enemy_rooks_queens,
 ///     king_index);
 /// ```
 ///
 /// # Arguments
-/// 
+///
 /// First argument should always contain a reference to an array of negative rays. These are:
 /// - [`SOUTH_ATTACK_RAYS`] (when handling rooks/queens)
 /// - [`WEST_ATTACK_RAYS`] (when handling rooks/queens)
 /// - [`SOUTHEAST_ATTACK_RAYS`] (when handling bishops/queens)
 /// - [`SOUTHWEST_ATTACK_RAYS`] (when handling bishops/queens)
-/// 
+///
 /// Second argument should contain a [`bitboard::Bitboard`] that stores all squares that are
-/// occupied on the board. 
+/// occupied on the board.
 ///
 /// Third argument should contain a [`bitboard::Bitboard`] that stores all squares occupied
 /// by enemy:
-/// - rooks and queens if [`SOUTH_ATTACK_RAYS`] or [`WEST_ATTACK_RAYS`] 
+/// - rooks and queens if [`SOUTH_ATTACK_RAYS`] or [`WEST_ATTACK_RAYS`]
 ///     was given as the first argument
 /// - bishops and queens if either [`SOUTHWEST_ATTACK_RAYS`] or
 /// [`SOUTHEAST_ATTACK_RAYS`] was given as the first argument
