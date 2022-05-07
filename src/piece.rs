@@ -84,14 +84,14 @@ impl TryFrom<char> for Kind {
 }
 
 /// Represents colors of pieces that can be found on the chessboard.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Color {
     Black,
     White,
 }
 
 /// Represents a chess piece.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Eq)]
 pub struct Piece {
     kind: Kind,
     color: Color,
