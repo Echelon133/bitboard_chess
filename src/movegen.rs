@@ -173,13 +173,28 @@ pub fn find_pawn_moves(
     let attack_bitboard = attack_bitboard & attacked_rank_mask;
 
     // check en-passant here, because the next bitwise AND only leaves squares that
-    // are directly attacked (i.e. only squares on which enemy pieces are remain,
-    // which is not the case when it comes to en-passant, because the piece is not
+    // are directly attacked (i.e. only squares on which enemy pieces remain,
+    // which is not the case when it comes to en passant, because the piece is not
     // attacked directly)
     if let Some(enpassant_target) = context.get_enpassant() {
-        // if the pawn attacks the en-passant target (which is placed behind the pawn that's
-        // just moved two squares) then it's possible that a capture can take place
-        if attack_bitboard.is_set(enpassant_target) {
+        // white enpassant_target is on the 3rd rank, whereas 
+        // black enpassant_target is on the 6th rank
+        //
+        // any other value means that somehow enpassant_target got incorrectly set
+        // in the board context, which means that some invariant got broken and the board
+        // might be in an invalid state
+        let capture_rank = match enpassant_target.get_rank() {
+            square::Rank::R3 => square::Rank::R4,
+            square::Rank::R6 => square::Rank::R5,
+            _ => panic!("invalid enpassant target"),
+        };
+        // enpassant is only possible if both conditions below are true:
+        // - the square from which the pawn would be captured en passant is actually taken 
+        //      by the opponent piece, otherwise there is nothing to capture
+        // - the pawn attacks the enpassant_target square, which means that it's in position
+        //      to take advantage of the en passant rule
+        let pawn_capture_sq = square::Square::new(capture_rank, enpassant_target.get_file());
+        if opponent_taken.is_set(pawn_capture_sq) && attack_bitboard.is_set(enpassant_target) {
             let mv = moves::Move::new(piece_square, enpassant_target);
             moves.push(moves::UCIMove::Regular { m: mv });
         }
