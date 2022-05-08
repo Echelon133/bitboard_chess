@@ -410,7 +410,57 @@ impl Chessboard {
                     .place_piece(captured_pawn_sq, &pawn_to_restore);
                 self.context = ctx;
             }
-            _ => unimplemented!("other moves not implemented"),
+            moves::TakenMove::Castling { s, ctx } => {
+                let color_castled = ctx.get_color_to_play();
+                // TODO: make these tuples with squares global static
+                let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
+                    match color_castled {
+                        piece::Color::White => {
+                            if s == context::Side::Queenside {
+                                (
+                                    square::Square::try_from("d1").unwrap(),
+                                    square::Square::try_from("a1").unwrap(),
+                                    square::Square::try_from("c1").unwrap(),
+                                    square::Square::try_from("e1").unwrap(),
+                                )
+                            } else {
+                                (
+                                    square::Square::try_from("f1").unwrap(),
+                                    square::Square::try_from("h1").unwrap(),
+                                    square::Square::try_from("g1").unwrap(),
+                                    square::Square::try_from("e1").unwrap(),
+                                )
+                            }
+                        }
+                        piece::Color::Black => {
+                            if s == context::Side::Queenside {
+                                (
+                                    square::Square::try_from("d8").unwrap(),
+                                    square::Square::try_from("a8").unwrap(),
+                                    square::Square::try_from("c8").unwrap(),
+                                    square::Square::try_from("e8").unwrap(),
+                                )
+                            } else {
+                                (
+                                    square::Square::try_from("f8").unwrap(),
+                                    square::Square::try_from("h8").unwrap(),
+                                    square::Square::try_from("g8").unwrap(),
+                                    square::Square::try_from("e8").unwrap(),
+                                )
+                            }
+                        }
+                    };
+
+                // swap the king and the rook
+                let king_piece = self.inner_board.remove_piece(king_start_square).unwrap();
+                let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
+                self.inner_board
+                    .place_piece(king_target_square, &king_piece);
+                self.inner_board
+                    .place_piece(rook_target_square, &rook_piece);
+
+                self.context = ctx;
+            }
         }
     }
 
