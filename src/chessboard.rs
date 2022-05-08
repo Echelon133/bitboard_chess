@@ -229,6 +229,57 @@ impl Chessboard {
             self.context.set_enpassant(None);
             unimplemented!("castling unimplemented");
         } else {
+            // based on the piece that's just moved, figure out whether castling flags should
+            // be disabled
+            let white_king_start = square::Square::try_from("e1").unwrap();
+            let black_king_start = square::Square::try_from("e8").unwrap();
+            let white_qside_rook_start = square::Square::try_from("a1").unwrap();
+            let white_kside_rook_start = square::Square::try_from("h1").unwrap();
+            let black_qside_rook_start = square::Square::try_from("a8").unwrap();
+            let black_kside_rook_start = square::Square::try_from("h8").unwrap();
+
+            match piece.get_kind() {
+                piece::Kind::King => {
+                    if piece.get_color() == piece::Color::White {
+                        if start == white_king_start {
+                            // white king moving from e1 disables both sides of castling
+                            self.context
+                                .disable_castling(piece::Color::White, context::Side::Kingside);
+                            self.context
+                                .disable_castling(piece::Color::White, context::Side::Queenside);
+                        }
+                    } else {
+                        if start == black_king_start {
+                            // black king moving from e8 disables both sides of castling
+                            self.context
+                                .disable_castling(piece::Color::Black, context::Side::Kingside);
+                            self.context
+                                .disable_castling(piece::Color::Black, context::Side::Queenside);
+                        }
+                    }
+                }
+                piece::Kind::Rook => {
+                    if piece.get_color() == piece::Color::White {
+                        if start == white_qside_rook_start {
+                            self.context
+                                .disable_castling(piece::Color::White, context::Side::Queenside);
+                        } else if start == white_kside_rook_start {
+                            self.context
+                                .disable_castling(piece::Color::White, context::Side::Kingside);
+                        }
+                    } else {
+                        if start == black_qside_rook_start {
+                            self.context
+                                .disable_castling(piece::Color::Black, context::Side::Queenside);
+                        } else if start == black_kside_rook_start {
+                            self.context
+                                .disable_castling(piece::Color::Black, context::Side::Kingside);
+                        }
+                    }
+                }
+                _ => (),
+            }
+
             let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
             self.context.set_enpassant(enpassant_target);
 
