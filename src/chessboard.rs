@@ -225,9 +225,54 @@ impl Chessboard {
                 ctx: saved_context,
             });
             self.context.set_enpassant(None);
-        } else if let Some(_side) = Chessboard::is_castling(&piece, m) {
+        } else if let Some(side) = Chessboard::is_castling(&piece, m) {
             self.context.set_enpassant(None);
-            unimplemented!("castling unimplemented");
+            let king_piece = piece;
+
+            let castling_side_color = king_piece.get_color();
+            let (rook_start_square, rook_target_square) = match king_piece.get_color() {
+                piece::Color::White => {
+                    if side == context::Side::Kingside {
+                        (
+                            square::Square::try_from("h1").unwrap(),
+                            square::Square::try_from("f1").unwrap(),
+                        )
+                    } else {
+                        (
+                            square::Square::try_from("a1").unwrap(),
+                            square::Square::try_from("d1").unwrap(),
+                        )
+                    }
+                }
+                piece::Color::Black => {
+                    if side == context::Side::Kingside {
+                        (
+                            square::Square::try_from("h8").unwrap(),
+                            square::Square::try_from("f8").unwrap(),
+                        )
+                    } else {
+                        (
+                            square::Square::try_from("a8").unwrap(),
+                            square::Square::try_from("d8").unwrap(),
+                        )
+                    }
+                }
+            };
+            // move both the king and the rook to achieve castling
+            let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
+            self.inner_board
+                .place_piece(rook_target_square, &rook_piece);
+            self.inner_board.place_piece(target, &king_piece);
+            // if castling appears on the board, castling rights no longer apply
+            self.context
+                .disable_castling(castling_side_color, context::Side::Kingside);
+            self.context
+                .disable_castling(castling_side_color, context::Side::Queenside);
+
+            self.history.push(moves::TakenMove::Castling {
+                s: side,
+                ctx: saved_context,
+            });
         } else {
             // based on the piece that's just moved, figure out whether castling flags should
             // be disabled
