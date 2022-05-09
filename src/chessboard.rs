@@ -7,6 +7,44 @@ use crate::moves;
 use crate::piece;
 use crate::square;
 
+/// Squares that create a path between the white king and H1 rook,
+/// which cannot be attacked by a black piece if the player wants to
+/// legally castle.
+const WHITE_KINGSIDE_CASTLING_PATH: [square::Square; 3] = [
+    square::Square::new(square::Rank::R1, square::File::E),
+    square::Square::new(square::Rank::R1, square::File::F),
+    square::Square::new(square::Rank::R1, square::File::G),
+];
+
+/// Squares that create a path between the black king and H8 rook,
+/// which cannot be attacked by a white piece if the player wants to
+/// legally castle.
+const BLACK_KINGSIDE_CASTLING_PATH: [square::Square; 3] = [
+    square::Square::new(square::Rank::R8, square::File::E),
+    square::Square::new(square::Rank::R8, square::File::F),
+    square::Square::new(square::Rank::R8, square::File::G),
+];
+
+/// Squares that create a path between the white king and A1 rook,
+/// which cannot be attacked by a black piece if the player wants to
+/// legally castle.
+const WHITE_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
+    square::Square::new(square::Rank::R1, square::File::B),
+    square::Square::new(square::Rank::R1, square::File::C),
+    square::Square::new(square::Rank::R1, square::File::D),
+    square::Square::new(square::Rank::R1, square::File::E),
+];
+
+/// Squares that create a path between the black king and A8 rook,
+/// which cannot be attacked by a white piece if the player wants to
+/// legally castle.
+const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
+    square::Square::new(square::Rank::R8, square::File::B),
+    square::Square::new(square::Rank::R8, square::File::C),
+    square::Square::new(square::Rank::R8, square::File::D),
+    square::Square::new(square::Rank::R8, square::File::E),
+];
+
 /// Represents a playable chessboard.
 ///
 /// This struct is responsible for:
