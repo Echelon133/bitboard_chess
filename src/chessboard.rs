@@ -45,6 +45,13 @@ const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
     square::Square::new(square::Rank::R8, square::File::E),
 ];
 
+/// Describes the end result of the game.
+#[derive(Debug, Copy, Clone)]
+pub enum GameResult {
+    Checkmate { winner: piece::Color },
+    Draw { stalemate: bool },
+}
+
 /// Represents a playable chessboard.
 ///
 /// This struct is responsible for:
@@ -58,6 +65,7 @@ pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
     history: Vec<moves::TakenMove>,
+    end_result: Option<GameResult>,
 }
 
 impl Chessboard {
@@ -70,12 +78,25 @@ impl Chessboard {
     /// Apart from that, this method updates the context of the chessboard, so that
     /// the color of the next player is set (which might also update the fullmove counter).
     ///
+    /// If the move does not end the game, `Result` with [`None`] is returned.
+    /// Otherwise, a `Result` with correct [`GameResult`] is returned.
+    ///
     /// NOTE: this method checks moves for their legality only in the release mode.
     /// While in test mode, these checks are disabled, because all moves that are
     /// given to this method to execute are taken from legal move generating functions,
     /// so move legality checks are omitted for performance reasons.
     ///
-    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<bool, &'static str> {
+    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<Option<GameResult>, &'static str> {
+        // don't compile this check in test mode, because all tests immediately stop
+        // playing the game when they receive `GameResult` and do not attempt to further
+        // play a game that's already finished
+        #[cfg(not(test))]
+        {
+            if self.end_result.is_some() {
+                return Ok(self.end_result);
+            }
+        }
+
         // don't compile this in test mode, because during tests legality of moves
         // is enforced by only executing this method with moves that have been generated
         // by movegen functions for the current state of the board
@@ -98,16 +119,33 @@ impl Chessboard {
 
         self.context.flip_color_to_play();
 
+        // here it's the color of the next player which is yet to move
+        let color_to_play = self.context.get_color_to_play();
+
         // check if the executed move has resulted in a checkmate
-        // NOTE: current implementation is very naive, because the only two states
-        // it recognizes are either checkmate or no checkmate
-        // TODO: implement things like stalemate or insufficient material detection
-        let next_player_moves = self.find_all_legal_moves().iter().count();
-        let is_king_in_check = self.is_king_in_check(self.context.get_color_to_play());
-        if next_player_moves == 0 && is_king_in_check {
-            Ok(true)
+        // TODO: instead of calling find_all_legal_moves, create some function that
+        // simply checks whether there is at least a single legal move, because
+        // it's unnecessary to look for all of them and waste time
+        let num_next_player_moves = self.find_all_legal_moves().iter().count();
+        let is_king_in_check = self.is_king_in_check(color_to_play);
+
+        if num_next_player_moves == 0 {
+            if is_king_in_check {
+                // the winner is the previous color
+                let winner = match color_to_play {
+                    piece::Color::White => piece::Color::Black,
+                    piece::Color::Black => piece::Color::White,
+                };
+                self.end_result = Some(GameResult::Checkmate { winner });
+            } else {
+                self.end_result = Some(GameResult::Draw { stalemate: true });
+            }
+            Ok(self.end_result)
         } else {
-            Ok(false)
+            // TODO: implement detection of draws which happen because:
+            // - the halfmoves counter reached 50
+            // - neither player has enough material to checkmate
+            Ok(None)
         }
     }
 
@@ -554,6 +592,7 @@ impl Chessboard {
                 self.context = ctx;
             }
         }
+        self.end_result = None
     }
 
     /// Returns [`true`] if the king is in check. Currently not the fastest implementation
@@ -620,6 +659,7 @@ impl Default for Chessboard {
             inner_board: board::Board::default(),
             context: context::Context::default(),
             history: Vec::new(),
+            end_result: None,
         }
     }
 }
@@ -650,6 +690,7 @@ impl TryFrom<&str> for Chessboard {
             inner_board: board,
             context,
             history: Vec::new(),
+            end_result: None,
         })
     }
 }
