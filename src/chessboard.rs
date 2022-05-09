@@ -142,10 +142,16 @@ impl Chessboard {
             }
             Ok(self.end_result)
         } else {
-            // TODO: implement detection of draws which happen because:
-            // - the halfmoves counter reached 50
-            // - neither player has enough material to checkmate
-            Ok(None)
+            let (white_taken, black_taken) = self.inner_board.get_squares_taken_pair();
+            // both players only have their kings, therefore it's a draw
+            if white_taken.count_set() == 1 && black_taken.count_set() == 1 {
+                Ok(Some(GameResult::Draw { stalemate: false }))
+            } else {
+                // TODO: implement detection of draws which happen because:
+                // - the halfmoves counter reached 50
+                // - there is not enough material to checkmate
+                Ok(None)
+            }
         }
     }
 
