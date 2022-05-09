@@ -39,7 +39,7 @@ impl File {
     /// Returns the index of the file.
     /// Indexes start from A, so the index of
     /// A is 0, then B is 1, and so on.
-    pub fn index(&self) -> u8 {
+    pub const fn index(&self) -> u8 {
         *self as u8
     }
 
@@ -113,7 +113,7 @@ impl Rank {
     /// Returns the index of the rank.
     /// Indexes start from the first rank, so the
     /// index of R1 is 0, then R2 is 1, and so on.
-    pub fn index(&self) -> u8 {
+    pub const fn index(&self) -> u8 {
         *self as u8
     }
 
@@ -191,7 +191,7 @@ pub struct Square {
 impl Square {
     /// Creates an immutable [`Square`] that represents given [`Rank`] and [`File`]
     /// on the board.
-    pub fn new(rank: Rank, file: File) -> Self {
+    pub const fn new(rank: Rank, file: File) -> Self {
         Self {
             square_index: (rank.index() * 8) + file.index(),
         }
