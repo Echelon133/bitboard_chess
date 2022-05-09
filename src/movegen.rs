@@ -177,7 +177,7 @@ pub fn find_pawn_moves(
     // which is not the case when it comes to en passant, because the piece is not
     // attacked directly)
     if let Some(enpassant_target) = context.get_enpassant() {
-        // white enpassant_target is on the 3rd rank, whereas 
+        // white enpassant_target is on the 3rd rank, whereas
         // black enpassant_target is on the 6th rank
         //
         // any other value means that somehow enpassant_target got incorrectly set
@@ -189,7 +189,7 @@ pub fn find_pawn_moves(
             _ => panic!("invalid enpassant target"),
         };
         // enpassant is only possible if both conditions below are true:
-        // - the square from which the pawn would be captured en passant is actually taken 
+        // - the square from which the pawn would be captured en passant is actually taken
         //      by the opponent piece, otherwise there is nothing to capture
         // - the pawn attacks the enpassant_target square, which means that it's in position
         //      to take advantage of the en passant rule
@@ -717,7 +717,11 @@ macro_rules! negative_ray_attacks_piece {
 /// # Panics
 /// This function panics if there is no piece of the given color on the board.
 #[inline(always)]
-pub fn is_square_attacked(square: square::Square, piece_color: piece::Color, board: &board::Board) -> bool {
+pub fn is_square_attacked(
+    square: square::Square,
+    piece_color: piece::Color,
+    board: &board::Board,
+) -> bool {
     let index = square.get_index();
 
     let enemy_color = match piece_color {
