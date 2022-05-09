@@ -597,8 +597,8 @@ pub fn find_queen_moves(
     moves
 }
 
-/// Generates code that checks whether a positive ray cast from the king's square
-/// hits an unblocked piece that attacks the king.
+/// Generates code that checks whether a positive ray cast from the given square
+/// hits an unblocked enemy piece.
 ///
 /// # How it works - an example
 ///
@@ -611,7 +611,7 @@ pub fn find_queen_moves(
 /// let enemy_rooks_queens: bitboard::Bitboard =
 ///     /* calculate all enemy rooks and queens squares */;
 /// let king_index = square::Square::try_from("e4").unwrap().get_index();
-/// let is_in_check = positive_ray_attacks_king!(
+/// let is_in_check = positive_ray_attacks_piece!(
 ///     NORTH_ATTACK_RAYS,
 ///     all_taken,
 ///     enemy_rooks_queens,
@@ -636,28 +636,25 @@ pub fn find_queen_moves(
 /// - bishops and queens if either [`NORTHWEST_ATTACK_RAYS`] or
 /// [`NORTHEAST_ATTACK_RAYS`] was given as the first argument
 ///
-/// Last argument should contain the index of the square occupied by the king.
+/// Last argument should contain the index of the square occupied by the piece which is
+/// being checked for being attacked.
 ///
-macro_rules! positive_ray_attacks_king {
+macro_rules! positive_ray_attacks_piece {
     ($rays:ident, $all_taken:ident, $enemy_attacking_pieces:ident, $index:expr) => {{
         let attack = $crate::bitboard::Bitboard::from($rays[$index]);
         let blocker = attack & $all_taken;
         if blocker.count_set() != 0 {
             let blocker_index = blocker.bitscan_forward();
             let blocker_square = $crate::square::Square::from(blocker_index as u8);
-            if $enemy_attacking_pieces.is_set(blocker_square) {
-                true
-            } else {
-                false
-            }
+            $enemy_attacking_pieces.is_set(blocker_square)
         } else {
             false
         }
     }};
 }
 
-/// Generates code that checks whether a negative ray cast from the king's square
-/// hits an unblocked piece that attacks the king.
+/// Generates code that checks whether a negative ray cast from the square
+/// hits an unblocked enemy piece.
 ///
 /// # How it works - an example
 ///
@@ -670,7 +667,7 @@ macro_rules! positive_ray_attacks_king {
 /// let enemy_rooks_queens: bitboard::Bitboard =
 ///     /* calculate all enemy rooks and queens squares */;
 /// let king_index = square::Square::try_from("e4").unwrap().get_index();
-/// let is_in_check = positive_ray_attacks_king!(
+/// let is_in_check = positive_ray_attacks_piece!(
 ///     SOUTH_ATTACK_RAYS,
 ///     all_taken,
 ///     enemy_rooks_queens,
@@ -695,46 +692,40 @@ macro_rules! positive_ray_attacks_king {
 /// - bishops and queens if either [`SOUTHWEST_ATTACK_RAYS`] or
 /// [`SOUTHEAST_ATTACK_RAYS`] was given as the first argument
 ///
-/// Last argument should contain the index of the square occupied by the king.
+/// Last argument should contain the index of the square occupied by the piece which is
+/// being checked for being attacked.
 ///
-macro_rules! negative_ray_attacks_king {
+macro_rules! negative_ray_attacks_piece {
     ($rays:ident, $all_taken:ident, $enemy_attacking_pieces:ident, $index:expr) => {{
         let attack = $crate::bitboard::Bitboard::from($rays[$index]);
         let blocker = attack & $all_taken;
         if blocker.count_set() != 0 {
             let blocker_index = blocker.bitscan_reverse();
             let blocker_square = $crate::square::Square::from(blocker_index as u8);
-            if $enemy_attacking_pieces.is_set(blocker_square) {
-                true
-            } else {
-                false
-            }
+            $enemy_attacking_pieces.is_set(blocker_square)
         } else {
             false
         }
     }};
 }
 
-/// Checks if the king of particular color is in check on the given [`board::Board`].
+/// Checks if the square of particular color is being attacked on the given [`board::Board`].
 ///
-/// This function backtraces from the king's position to find any unblocked enemy pieces,
-/// then it checks whether the found piece's moveset allows it to attack the king.
+/// This function backtraces from the piece's position to find any unblocked enemy pieces,
+/// then it checks whether the found piece's moveset allows it to attack the checked piece.
 ///
 /// # Panics
-/// This function panics if there is no king of the given color on the board.
+/// This function panics if there is no piece of the given color on the board.
 #[inline(always)]
-pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool {
-    let king_piece = piece::Piece::new(piece::Kind::King, king_color);
-    // expect the king to ALWAYS be on the board
-    let king_square = board.get_piece_bitboard(&king_piece).iter().next().unwrap();
-    let index = king_square.get_index();
+pub fn is_square_attacked(square: square::Square, piece_color: piece::Color, board: &board::Board) -> bool {
+    let index = square.get_index();
 
-    let enemy_color = match king_color {
+    let enemy_color = match piece_color {
         piece::Color::White => piece::Color::Black,
         piece::Color::Black => piece::Color::White,
     };
 
-    let (own_taken, enemy_taken) = match king_color {
+    let (own_taken, enemy_taken) = match piece_color {
         piece::Color::White => (
             board.get_squares_taken(piece::Color::White),
             board.get_squares_taken(piece::Color::Black),
@@ -750,10 +741,10 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
     // =================CHECK ENEMY KNIGHTS ============================
     let knight_piece = piece::Piece::new(piece::Kind::Knight, enemy_color);
     let enemy_knights = *board.get_piece_bitboard(&knight_piece);
-    // find all squares around the king from which enemy knights could attack
+    // find all squares around the piece from which enemy knights could attack
     let knight_backward_attack = bitboard::Bitboard::from(KNIGHT_ATTACK_PATTERNS[index]);
     // if there is even a single common bit between knight_backward_attack and enemy_knights,
-    // it means that the king is in check
+    // it means that the piece is being attacked
     let knight_backward_attack = knight_backward_attack & enemy_knights;
     if knight_backward_attack.count_set() != 0 {
         return true;
@@ -763,16 +754,14 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
     let queen_piece = piece::Piece::new(piece::Kind::Queen, enemy_color);
     let rook_piece = piece::Piece::new(piece::Kind::Rook, enemy_color);
     // create a bitboard that holds info where enemy rooks and queens are, because these
-    // are the pieces that can attack the king on files and ranks
+    // are the pieces that can attack on files and ranks
     let enemy_rooks_queens =
         *board.get_piece_bitboard(&queen_piece) | *board.get_piece_bitboard(&rook_piece);
 
-    // if the king can be attacked by rook/queen from north/south/east/west, it means
-    // that it's in check
-    if positive_ray_attacks_king!(NORTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
-        || negative_ray_attacks_king!(SOUTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
-        || positive_ray_attacks_king!(EAST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
-        || negative_ray_attacks_king!(WEST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+    if positive_ray_attacks_piece!(NORTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || negative_ray_attacks_piece!(SOUTH_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || positive_ray_attacks_piece!(EAST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
+        || negative_ray_attacks_piece!(WEST_ATTACK_RAYS, all_taken, enemy_rooks_queens, index)
     {
         return true;
     }
@@ -780,16 +769,14 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
     // ================= CHECK DIAGONALS ============================
     let bishop_piece = piece::Piece::new(piece::Kind::Bishop, enemy_color);
     // create a bitboard that holds info where enemy bishops and queens are, because these
-    // are the pieces that can attack the king on diagonals
+    // are the pieces that can attack on diagonals
     let enemy_diagonals =
         *board.get_piece_bitboard(&queen_piece) | *board.get_piece_bitboard(&bishop_piece);
 
-    // if the king can be attacked by bishop/queen from north-east/north-west/south-east/south-west
-    // then it means that it's in check
-    if positive_ray_attacks_king!(NORTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
-        || positive_ray_attacks_king!(NORTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
-        || negative_ray_attacks_king!(SOUTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
-        || negative_ray_attacks_king!(SOUTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+    if positive_ray_attacks_piece!(NORTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || positive_ray_attacks_piece!(NORTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || negative_ray_attacks_piece!(SOUTHEAST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
+        || negative_ray_attacks_piece!(SOUTHWEST_ATTACK_RAYS, all_taken, enemy_diagonals, index)
     {
         return true;
     }
@@ -799,8 +786,6 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
     let enemy_kings = *board.get_piece_bitboard(&king_piece);
     // find all squares which the king attacks
     let king_attack = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
-    // if there is even a single common bit between king_attack and enemy_kings,
-    // it means that the king is in check
     let king_attack = king_attack & enemy_kings;
     if king_attack.count_set() != 0 {
         return true;
@@ -810,14 +795,14 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
     let pawn_piece = piece::Piece::new(piece::Kind::Pawn, enemy_color);
     let enemy_pawns = *board.get_piece_bitboard(&pawn_piece);
 
-    let king_file = king_square.get_file();
-    // kings can only be attacked by pawns on their diagonals if:
-    // - they are white and pawns are one rank above (closer to the 8th rank)
-    // - they are black and pawns are one rank below (closer to the 1st rank)
+    let piece_file = square.get_file();
+    // pieces can only be attacked by enemy pawns on their diagonals if:
+    // - white pawns are one rank above (closer to the 8th rank)
+    // - black pawns are one rank below (closer to the 1st rank)
     //
-    // if the king is on the A file or H file, one diagonal simply does not exist
-    if king_file != square::File::A {
-        let left_square_index = match king_color {
+    // if the piece is on the A file or H file, one diagonal simply does not exist
+    if piece_file != square::File::A {
+        let left_square_index = match piece_color {
             piece::Color::White => index + 7,
             piece::Color::Black => index - 9,
         };
@@ -830,8 +815,8 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
         }
     }
 
-    if king_file != square::File::H {
-        let right_square_index = match king_color {
+    if piece_file != square::File::H {
+        let right_square_index = match piece_color {
             piece::Color::White => index + 9,
             piece::Color::Black => index - 7,
         };
@@ -845,8 +830,23 @@ pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool 
         }
     }
 
-    // if there is not a single piece that attacks the king, the king is not in check
+    // if there is not a single piece that attacks the checked square
     false
+}
+
+/// Checks if the king of particular color is in check on the given [`board::Board`].
+///
+/// This function backtraces from the king's position to find any unblocked enemy pieces,
+/// then it checks whether the found piece's moveset allows it to attack the king.
+///
+/// # Panics
+/// This function panics if there is no king of the given color on the board.
+#[inline(always)]
+pub fn is_king_in_check(king_color: piece::Color, board: &board::Board) -> bool {
+    let king_piece = piece::Piece::new(piece::Kind::King, king_color);
+    // expect the king to ALWAYS be on the board
+    let king_square = board.get_piece_bitboard(&king_piece).iter().next().unwrap();
+    is_square_attacked(king_square, king_color, &board)
 }
 
 #[cfg(test)]
