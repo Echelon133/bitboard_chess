@@ -111,18 +111,30 @@ impl Chessboard {
         }
     }
 
-    /// Checks whether the given move is legal, i.e. does not put the king in check.
+    /// Checks whether the given pseudo-legal move is legal, i.e. does not put the king in check.
     ///
     /// This method executes the given move, checks whether the king is in check, and if it is,
     /// it deems that move illegal and returns `false`.
+    /// A special case occurs when evaluating a castling move, because there are additional rules,
+    /// which state that:
+    /// - the king cannot castle when it's in check
+    /// - the king cannot castle if any square between it and the rook is attacked (the rook
+    ///     can be attacked)
+    ///
+    /// Conditions such as:
+    /// - castling is possible if neither the king nor the particular rook has moved
+    /// - squares between the rook and the king have to be empty
+    ///
+    /// are already satisfied by the [`movegen::find_king_moves`] function which only
+    /// generates castling moves if both of these conditions are satisfied.
     ///
     /// # Safety:
     /// This method might break some invariants of the chessboard (e.g. might put the chessboard
     /// in a state in which an illegal move is temporarily placed on the board), but
-    /// since it restores the chessboard to the previous valid state right before it returns,
+    /// since it restores the chessboard to a previous valid state right before it returns,
     /// and it holds the mutable reference to the entire chessboard, it's safe to break
     /// these invariants because no other part of the code can access the board's state while
-    /// these invariants are broken.
+    /// these invariants are temporarily broken.
     ///
     /// # Panics:
     /// This method panics if the move that's given to it is not even pseudo-legal,
@@ -133,11 +145,53 @@ impl Chessboard {
         match m {
             moves::UCIMove::Regular { m: mv } => {
                 self.handle_regular_move(mv);
+
+                // special case, check if the last move was castling, and if it was,
+                // check if any of the squares between the king (inclusive) and the rook
+                // are being attacked
+                let last_move = self.history.last().unwrap(); // guaranteed Some
+                match last_move {
+                    moves::TakenMove::Castling { s, ctx: _ } => {
+                        let castling_path: &[square::Square] = match (*s, own_color) {
+                            (context::Side::Kingside, piece::Color::White) => {
+                                &WHITE_KINGSIDE_CASTLING_PATH
+                            }
+                            (context::Side::Kingside, piece::Color::Black) => {
+                                &BLACK_KINGSIDE_CASTLING_PATH
+                            }
+                            (context::Side::Queenside, piece::Color::White) => {
+                                &WHITE_QUEENSIDE_CASTLING_PATH
+                            }
+                            (context::Side::Queenside, piece::Color::Black) => {
+                                &BLACK_QUEENSIDE_CASTLING_PATH
+                            }
+                        };
+
+                        let mut castling_path_squares_attacked = false;
+                        for square in castling_path.iter() {
+                            if movegen::is_square_attacked(*square, own_color, &self.inner_board) {
+                                castling_path_squares_attacked = true;
+                                break;
+                            }
+                        }
+                        self.undo_last_move();
+                        // if any square on the castling path is attacked,
+                        // then the entire castling move is illegal
+                        // NOTE: this returns early, since there is no need to call
+                        // is_king_in_check, because one of the squares that's checked above
+                        // is a square where king's presence is guaranteed, so it makes
+                        // no sense to check that again in case none of the squares
+                        // in the castling path are attacked
+                        return !castling_path_squares_attacked;
+                    }
+                    _ => (),
+                }
             }
             moves::UCIMove::Promotion { m: mv, k: kind } => {
                 self.handle_promotion_move(mv, *kind);
             }
         }
+
         let legal = !self.is_king_in_check(own_color);
         self.undo_last_move();
         legal
