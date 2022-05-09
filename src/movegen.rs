@@ -2463,9 +2463,6 @@ mod tests {
 
     #[test]
     fn is_king_in_check_blocked_attacks() {
-        //use std::env;
-        //env::set_var("RUST_BACKTRACE", "1");
-
         // white kings getting attacked through other blocking pieces
         let fens = [
             "rnb1kbnr/pppp1ppp/8/4p3/4P2q/3P4/PPP2PPP/RNBQKBNR", // blocked by pawn
