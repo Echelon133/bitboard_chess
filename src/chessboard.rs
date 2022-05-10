@@ -354,14 +354,14 @@ impl Chessboard {
         let king_color = piece.get_color();
         let (castle_start, kingside_target, queenside_target) = match king_color {
             piece::Color::White => (
-                square::Square::try_from("e1").unwrap(),
-                square::Square::try_from("g1").unwrap(),
-                square::Square::try_from("c1").unwrap(),
+                square::Square::new(square::Rank::R1, square::File::E),
+                square::Square::new(square::Rank::R1, square::File::G),
+                square::Square::new(square::Rank::R1, square::File::C),
             ),
             piece::Color::Black => (
-                square::Square::try_from("e8").unwrap(),
-                square::Square::try_from("g8").unwrap(),
-                square::Square::try_from("c8").unwrap(),
+                square::Square::new(square::Rank::R8, square::File::E),
+                square::Square::new(square::Rank::R8, square::File::G),
+                square::Square::new(square::Rank::R8, square::File::C),
             ),
         };
 
@@ -508,32 +508,30 @@ impl Chessboard {
         let king_piece = self.inner_board.remove_piece(king_start).unwrap();
 
         let castling_side_color = king_piece.get_color();
-        // TODO: create squares within tuples using Square::new, so that they can be
-        // created at compile time
         let (rook_start_square, rook_target_square) = match castling_side_color {
             piece::Color::White => {
                 if side == context::Side::Kingside {
                     (
-                        square::Square::try_from("h1").unwrap(),
-                        square::Square::try_from("f1").unwrap(),
+                        square::Square::new(square::Rank::R1, square::File::H),
+                        square::Square::new(square::Rank::R1, square::File::F),
                     )
                 } else {
                     (
-                        square::Square::try_from("a1").unwrap(),
-                        square::Square::try_from("d1").unwrap(),
+                        square::Square::new(square::Rank::R1, square::File::A),
+                        square::Square::new(square::Rank::R1, square::File::D),
                     )
                 }
             }
             piece::Color::Black => {
                 if side == context::Side::Kingside {
                     (
-                        square::Square::try_from("h8").unwrap(),
-                        square::Square::try_from("f8").unwrap(),
+                        square::Square::new(square::Rank::R8, square::File::H),
+                        square::Square::new(square::Rank::R8, square::File::F),
                     )
                 } else {
                     (
-                        square::Square::try_from("a8").unwrap(),
-                        square::Square::try_from("d8").unwrap(),
+                        square::Square::new(square::Rank::R8, square::File::A),
+                        square::Square::new(square::Rank::R8, square::File::D),
                     )
                 }
             }
