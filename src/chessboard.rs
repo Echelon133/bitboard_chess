@@ -571,8 +571,8 @@ impl Chessboard {
         });
     }
 
-    /// Undoes the last test move and restores the context of the board so that castling
-    /// rights or move counters are not broken by undoing the move.
+    /// Undoes the last legal or pseudo-legal move and restores the context of
+    /// the board, so that castling rights or move counters don't end up broken.
     ///
     /// # Panics
     /// This method panics if there are no elements in the chessboard move history or
@@ -587,100 +587,153 @@ impl Chessboard {
                 captured_piece,
                 ctx,
             } => {
-                let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-                self.inner_board.place_piece(m.get_start(), &removed_piece);
-                // if the move was capturing, put the captured piece back on the board
-                if let Some(captured_piece) = captured_piece {
-                    self.inner_board
-                        .place_piece(m.get_target(), &captured_piece);
-                }
-                self.context = ctx;
+                self.undo_piece_move(&m, captured_piece, &ctx);
             }
             moves::TakenMove::Promotion {
                 m,
                 captured_piece,
                 ctx,
             } => {
-                // removed piece was the promoted piece, so it dissappears from the board
-                // completely
-                let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-                let pawn = piece::Piece::new(piece::Kind::Pawn, removed_piece.get_color());
-                self.inner_board.place_piece(m.get_start(), &pawn);
-                // if the promotion move was capturing, put the captured piece back on the board
-                if let Some(captured_piece) = captured_piece {
-                    self.inner_board
-                        .place_piece(m.get_target(), &captured_piece);
-                }
-                self.context = ctx;
+                self.undo_promotion(&m, captured_piece, &ctx);
             }
-            moves::TakenMove::EnPassant { m, ctx } => {
-                let removed_pawn = self.inner_board.remove_piece(m.get_target()).unwrap();
-                self.inner_board.place_piece(m.get_start(), &removed_pawn);
-                // restore the enemy pawn
-                let captured_pawn_sq =
-                    square::Square::new(m.get_start().get_rank(), m.get_target().get_file());
-                let captured_pawn_color = match removed_pawn.get_color() {
-                    piece::Color::White => piece::Color::Black,
-                    piece::Color::Black => piece::Color::White,
-                };
-                let pawn_to_restore = piece::Piece::new(piece::Kind::Pawn, captured_pawn_color);
-                self.inner_board
-                    .place_piece(captured_pawn_sq, &pawn_to_restore);
-                self.context = ctx;
-            }
+            moves::TakenMove::EnPassant { m, ctx } => self.undo_enpassant(&m, &ctx),
             moves::TakenMove::Castling { s, ctx } => {
-                let color_castled = ctx.get_color_to_play();
-                // TODO: make these tuples with squares global static
-                let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
-                    match color_castled {
-                        piece::Color::White => {
-                            if s == context::Side::Queenside {
-                                (
-                                    square::Square::try_from("d1").unwrap(),
-                                    square::Square::try_from("a1").unwrap(),
-                                    square::Square::try_from("c1").unwrap(),
-                                    square::Square::try_from("e1").unwrap(),
-                                )
-                            } else {
-                                (
-                                    square::Square::try_from("f1").unwrap(),
-                                    square::Square::try_from("h1").unwrap(),
-                                    square::Square::try_from("g1").unwrap(),
-                                    square::Square::try_from("e1").unwrap(),
-                                )
-                            }
-                        }
-                        piece::Color::Black => {
-                            if s == context::Side::Queenside {
-                                (
-                                    square::Square::try_from("d8").unwrap(),
-                                    square::Square::try_from("a8").unwrap(),
-                                    square::Square::try_from("c8").unwrap(),
-                                    square::Square::try_from("e8").unwrap(),
-                                )
-                            } else {
-                                (
-                                    square::Square::try_from("f8").unwrap(),
-                                    square::Square::try_from("h8").unwrap(),
-                                    square::Square::try_from("g8").unwrap(),
-                                    square::Square::try_from("e8").unwrap(),
-                                )
-                            }
-                        }
-                    };
-
-                // swap the king and the rook
-                let king_piece = self.inner_board.remove_piece(king_start_square).unwrap();
-                let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
-                self.inner_board
-                    .place_piece(king_target_square, &king_piece);
-                self.inner_board
-                    .place_piece(rook_target_square, &rook_piece);
-
-                self.context = ctx;
+                self.undo_castling(s, &ctx);
             }
         }
         self.end_result = None
+    }
+
+    /// Undoes a move that's NOT castling, en passant or pawn promotion, then restores the
+    /// context of the board, so that castling rights or move counters don't end up broken.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the target square of the `moves::Move`
+    /// that's given as an argument.
+    #[inline(always)]
+    fn undo_piece_move(
+        &mut self,
+        m: &moves::Move,
+        captured_piece: Option<piece::Piece>,
+        ctx: &context::Context,
+    ) {
+        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
+        self.inner_board.place_piece(m.get_start(), &removed_piece);
+        // if the move was capturing, put the captured piece back on the board
+        if let Some(captured_piece) = captured_piece {
+            self.inner_board
+                .place_piece(m.get_target(), &captured_piece);
+        }
+        self.context = *ctx;
+    }
+
+    /// Undoes a pawn promotion move and restores the context of the board, so that
+    /// castling rights or move counters don't end up broken.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the target square of the `moves::Move`
+    /// that's given as an argument.
+    #[inline(always)]
+    fn undo_promotion(
+        &mut self,
+        m: &moves::Move,
+        captured_piece: Option<piece::Piece>,
+        ctx: &context::Context,
+    ) {
+        // removed piece was the promoted piece, so it dissappears from the board
+        // completely
+        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
+        let pawn = piece::Piece::new(piece::Kind::Pawn, removed_piece.get_color());
+        self.inner_board.place_piece(m.get_start(), &pawn);
+        // if the promotion move was capturing, put the captured piece back on the board
+        if let Some(captured_piece) = captured_piece {
+            self.inner_board
+                .place_piece(m.get_target(), &captured_piece);
+        }
+        self.context = *ctx;
+    }
+
+    /// Undoes an en passant capture and restores the context of the board, so that castling
+    /// rights or move counters don't end up broken.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the target square of the `moves::Move`
+    /// that's given as an argument.
+    #[inline(always)]
+    fn undo_enpassant(&mut self, m: &moves::Move, ctx: &context::Context) {
+        let removed_pawn = self.inner_board.remove_piece(m.get_target()).unwrap();
+        self.inner_board.place_piece(m.get_start(), &removed_pawn);
+        // restore the enemy pawn
+        let captured_pawn_sq =
+            square::Square::new(m.get_start().get_rank(), m.get_target().get_file());
+        let captured_pawn_color = match removed_pawn.get_color() {
+            piece::Color::White => piece::Color::Black,
+            piece::Color::Black => piece::Color::White,
+        };
+        let pawn_to_restore = piece::Piece::new(piece::Kind::Pawn, captured_pawn_color);
+        self.inner_board
+            .place_piece(captured_pawn_sq, &pawn_to_restore);
+        self.context = *ctx;
+    }
+
+    /// Undoes castling and restores the context of the board, so that castling rights or
+    /// move counters don't end up broken.
+    ///
+    /// # Panics
+    /// This method panics if any of the squares which it expects to be taken are empty.
+    /// Kingside/queenside castling always ends with the king and rook on certain squares,
+    /// so when these squares are unexpectedly empty, a panic occurs.
+    #[inline(always)]
+    fn undo_castling(&mut self, s: context::Side, ctx: &context::Context) {
+        let color_castled = ctx.get_color_to_play();
+        // TODO: make these tuples with squares global static
+        let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
+            match color_castled {
+                piece::Color::White => {
+                    if s == context::Side::Queenside {
+                        (
+                            square::Square::try_from("d1").unwrap(),
+                            square::Square::try_from("a1").unwrap(),
+                            square::Square::try_from("c1").unwrap(),
+                            square::Square::try_from("e1").unwrap(),
+                        )
+                    } else {
+                        (
+                            square::Square::try_from("f1").unwrap(),
+                            square::Square::try_from("h1").unwrap(),
+                            square::Square::try_from("g1").unwrap(),
+                            square::Square::try_from("e1").unwrap(),
+                        )
+                    }
+                }
+                piece::Color::Black => {
+                    if s == context::Side::Queenside {
+                        (
+                            square::Square::try_from("d8").unwrap(),
+                            square::Square::try_from("a8").unwrap(),
+                            square::Square::try_from("c8").unwrap(),
+                            square::Square::try_from("e8").unwrap(),
+                        )
+                    } else {
+                        (
+                            square::Square::try_from("f8").unwrap(),
+                            square::Square::try_from("h8").unwrap(),
+                            square::Square::try_from("g8").unwrap(),
+                            square::Square::try_from("e8").unwrap(),
+                        )
+                    }
+                }
+            };
+
+        // swap the king and the rook
+        let king_piece = self.inner_board.remove_piece(king_start_square).unwrap();
+        let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
+        self.inner_board
+            .place_piece(king_target_square, &king_piece);
+        self.inner_board
+            .place_piece(rook_target_square, &rook_piece);
+
+        self.context = *ctx;
     }
 
     /// Returns [`true`] if the king is in check. Currently not the fastest implementation
