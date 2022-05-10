@@ -128,6 +128,11 @@ impl Board {
         self.get_squares_taken(color).count_set()
     }
 
+    /// Returns how many pieces in general are on the board.
+    pub fn count_all_pieces(&self) -> u8 {
+        self.white_taken.count_set() + self.black_taken.count_set()
+    }
+
     /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`].
     #[inline(always)]
     pub fn get_piece_bitboard(&self, piece: &piece::Piece) -> &bitboard::Bitboard {
