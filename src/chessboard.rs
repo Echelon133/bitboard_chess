@@ -45,6 +45,28 @@ const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
     square::Square::new(square::Rank::R8, square::File::E),
 ];
 
+/// Initial square of the white king.
+const WHITE_KING_START: square::Square = square::Square::new(square::Rank::R1, square::File::E);
+
+/// Initial square of the black king.
+const BLACK_KING_START: square::Square = square::Square::new(square::Rank::R8, square::File::E);
+
+/// Initial square of the white rook (queenside).
+const WHITE_QSIDE_ROOK_START: square::Square =
+    square::Square::new(square::Rank::R1, square::File::A);
+
+/// Initial square of the black rook (queenside).
+const BLACK_QSIDE_ROOK_START: square::Square =
+    square::Square::new(square::Rank::R8, square::File::A);
+
+/// Initial square of the white rook (kingside).
+const WHITE_KSIDE_ROOK_START: square::Square =
+    square::Square::new(square::Rank::R1, square::File::H);
+
+/// Initial square of the black rook (kingside).
+const BLACK_KSIDE_ROOK_START: square::Square =
+    square::Square::new(square::Rank::R8, square::File::H);
+
 /// Describes the end result of the game.
 #[derive(Debug, Copy, Clone)]
 pub enum GameResult {
@@ -333,147 +355,207 @@ impl Chessboard {
         }
     }
 
-    /// Handles piece moves (without pawn promotions), castling, en-passant captures.
+    /// Handles all legal or pseudo-legal moves that are not pawn promotions.
+    ///
+    /// To handle pawn promotions, use [`Self::handle_promotion_move`]
     ///
     /// # Panics
     /// This method will panic if the given move is incorrect for the given board state,
     /// and e.g. wants to move a piece from a square that's not occupied.
     fn handle_regular_move(&mut self, m: &moves::Move) {
+        let piece = self.inner_board.get_piece(m.get_start()).unwrap();
+
+        if Chessboard::is_enpassant(&piece, m, self.context.get_enpassant()) {
+            self.handle_enpassant_move(m);
+        } else if let Some(side) = Chessboard::is_castling(&piece, m) {
+            self.handle_castling_move(m, side);
+        } else {
+            self.handle_piece_move(m);
+        }
+    }
+
+    /// Handles legal or pseudo-legal en passant moves.
+    ///
+    /// This method should only be given a `moves::Move` that is guaranteed
+    /// to be an en passant move. Calling this method with any other type of move
+    /// will put the board in a broken state, because this method does not even
+    /// check whether the given move describes a pawn move.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the start square of the
+    /// `moves::Move` that's passed as an argument.
+    /// It also panics if the en passant target square's rank is neither
+    /// the 3rd nor the 6th rank, because it means that the given move is
+    /// definitely invalid.
+    ///
+    #[inline(always)]
+    fn handle_enpassant_move(&mut self, m: &moves::Move) {
+        let saved_context = self.context.clone();
+        let (start, target) = (m.get_start(), m.get_target());
+        let pawn = self.inner_board.remove_piece(start).unwrap();
+
+        self.inner_board.place_piece(target, &pawn);
+        // capture the piece en-passant
+        let capture_rank = match target.get_rank() {
+            square::Rank::R3 => square::Rank::R4,
+            square::Rank::R6 => square::Rank::R5,
+            _ => panic!("incorrect enpassant target"),
+        };
+
+        // calculate the square from which the pawn should be captured en-passant
+        let captured_pawn_sq = square::Square::new(capture_rank, target.get_file());
+        self.inner_board.remove_piece(captured_pawn_sq);
+        self.history.push(moves::TakenMove::EnPassant {
+            m: *m,
+            ctx: saved_context,
+        });
+        self.context.set_enpassant(None);
+    }
+
+    /// Handles legal or pseudo-legal castling.
+    ///
+    /// This method should only be given a `moves::Move` that is guaranteed
+    /// to be a castling move. Calling this method with any other type of move
+    /// will put the board in a broken state.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the start square of the
+    /// `moves::Move`.
+    #[inline(always)]
+    fn handle_castling_move(&mut self, m: &moves::Move, side: context::Side) {
+        let saved_context = self.context.clone();
+        let (king_start, king_target) = (m.get_start(), m.get_target());
+        let king_piece = self.inner_board.remove_piece(king_start).unwrap();
+
+        let castling_side_color = king_piece.get_color();
+        // TODO: create squares within tuples using Square::new, so that they can be
+        // created at compile time
+        let (rook_start_square, rook_target_square) = match castling_side_color {
+            piece::Color::White => {
+                if side == context::Side::Kingside {
+                    (
+                        square::Square::try_from("h1").unwrap(),
+                        square::Square::try_from("f1").unwrap(),
+                    )
+                } else {
+                    (
+                        square::Square::try_from("a1").unwrap(),
+                        square::Square::try_from("d1").unwrap(),
+                    )
+                }
+            }
+            piece::Color::Black => {
+                if side == context::Side::Kingside {
+                    (
+                        square::Square::try_from("h8").unwrap(),
+                        square::Square::try_from("f8").unwrap(),
+                    )
+                } else {
+                    (
+                        square::Square::try_from("a8").unwrap(),
+                        square::Square::try_from("d8").unwrap(),
+                    )
+                }
+            }
+        };
+        // move both the king and the rook to achieve castling
+        let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
+        self.inner_board
+            .place_piece(rook_target_square, &rook_piece);
+        self.inner_board.place_piece(king_target, &king_piece);
+        // if castling appears on the board, castling rights no longer apply
+        self.context
+            .disable_castling(castling_side_color, context::Side::Kingside);
+        self.context
+            .disable_castling(castling_side_color, context::Side::Queenside);
+
+        self.history.push(moves::TakenMove::Castling {
+            s: side,
+            ctx: saved_context,
+        });
+        self.context.set_enpassant(None);
+    }
+
+    /// Handles all legal or pseudo-legal moves that are NOT castling,
+    /// en passant or pawn promotions. Updates castling flags depending on which pieces
+    /// moved. Sets en passant target square when a pawn gets moved two squares from it's
+    /// initial rank.
+    ///
+    /// This means that:
+    /// - both sides of castling are disabled if the king moves from it's initial square
+    /// - certain side of castling is disabled if the rook from that side moves from it's
+    ///     initial square
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the start square of the
+    /// `moves::Move`.
+    #[inline(always)]
+    fn handle_piece_move(&mut self, m: &moves::Move) {
         let saved_context = self.context.clone();
         let (start, target) = (m.get_start(), m.get_target());
         let piece = self.inner_board.remove_piece(start).unwrap();
 
-        // move is enpassant
-        if Chessboard::is_enpassant(&piece, m, self.context.get_enpassant()) {
-            self.inner_board.place_piece(target, &piece);
-            // capture the piece en-passant
-            let capture_rank = match target.get_rank() {
-                square::Rank::R3 => square::Rank::R4,
-                square::Rank::R6 => square::Rank::R5,
-                _ => panic!("incorrect enpassant target"),
-            };
-
-            // calculate the square from which the pawn should be captured en-passant
-            let captured_pawn_sq = square::Square::new(capture_rank, target.get_file());
-            self.inner_board.remove_piece(captured_pawn_sq);
-            self.history.push(moves::TakenMove::EnPassant {
-                m: *m,
-                ctx: saved_context,
-            });
-            self.context.set_enpassant(None);
-        } else if let Some(side) = Chessboard::is_castling(&piece, m) {
-            self.context.set_enpassant(None);
-            let king_piece = piece;
-
-            let castling_side_color = king_piece.get_color();
-            let (rook_start_square, rook_target_square) = match king_piece.get_color() {
-                piece::Color::White => {
-                    if side == context::Side::Kingside {
-                        (
-                            square::Square::try_from("h1").unwrap(),
-                            square::Square::try_from("f1").unwrap(),
-                        )
-                    } else {
-                        (
-                            square::Square::try_from("a1").unwrap(),
-                            square::Square::try_from("d1").unwrap(),
-                        )
+        // figure out whether the current move changes the state of castling flags
+        match piece.get_kind() {
+            piece::Kind::King => {
+                if piece.get_color() == piece::Color::White {
+                    if start == WHITE_KING_START {
+                        // white king moving from e1 disables both sides of castling
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Kingside);
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Queenside);
+                    }
+                } else {
+                    if start == BLACK_KING_START {
+                        // black king moving from e8 disables both sides of castling
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Kingside);
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Queenside);
                     }
                 }
-                piece::Color::Black => {
-                    if side == context::Side::Kingside {
-                        (
-                            square::Square::try_from("h8").unwrap(),
-                            square::Square::try_from("f8").unwrap(),
-                        )
-                    } else {
-                        (
-                            square::Square::try_from("a8").unwrap(),
-                            square::Square::try_from("d8").unwrap(),
-                        )
-                    }
-                }
-            };
-            // move both the king and the rook to achieve castling
-            let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
-            self.inner_board
-                .place_piece(rook_target_square, &rook_piece);
-            self.inner_board.place_piece(target, &king_piece);
-            // if castling appears on the board, castling rights no longer apply
-            self.context
-                .disable_castling(castling_side_color, context::Side::Kingside);
-            self.context
-                .disable_castling(castling_side_color, context::Side::Queenside);
-
-            self.history.push(moves::TakenMove::Castling {
-                s: side,
-                ctx: saved_context,
-            });
-        } else {
-            // based on the piece that's just moved, figure out whether castling flags should
-            // be disabled
-            let white_king_start = square::Square::try_from("e1").unwrap();
-            let black_king_start = square::Square::try_from("e8").unwrap();
-            let white_qside_rook_start = square::Square::try_from("a1").unwrap();
-            let white_kside_rook_start = square::Square::try_from("h1").unwrap();
-            let black_qside_rook_start = square::Square::try_from("a8").unwrap();
-            let black_kside_rook_start = square::Square::try_from("h8").unwrap();
-
-            match piece.get_kind() {
-                piece::Kind::King => {
-                    if piece.get_color() == piece::Color::White {
-                        if start == white_king_start {
-                            // white king moving from e1 disables both sides of castling
-                            self.context
-                                .disable_castling(piece::Color::White, context::Side::Kingside);
-                            self.context
-                                .disable_castling(piece::Color::White, context::Side::Queenside);
-                        }
-                    } else {
-                        if start == black_king_start {
-                            // black king moving from e8 disables both sides of castling
-                            self.context
-                                .disable_castling(piece::Color::Black, context::Side::Kingside);
-                            self.context
-                                .disable_castling(piece::Color::Black, context::Side::Queenside);
-                        }
-                    }
-                }
-                piece::Kind::Rook => {
-                    if piece.get_color() == piece::Color::White {
-                        if start == white_qside_rook_start {
-                            self.context
-                                .disable_castling(piece::Color::White, context::Side::Queenside);
-                        } else if start == white_kside_rook_start {
-                            self.context
-                                .disable_castling(piece::Color::White, context::Side::Kingside);
-                        }
-                    } else {
-                        if start == black_qside_rook_start {
-                            self.context
-                                .disable_castling(piece::Color::Black, context::Side::Queenside);
-                        } else if start == black_kside_rook_start {
-                            self.context
-                                .disable_castling(piece::Color::Black, context::Side::Kingside);
-                        }
-                    }
-                }
-                _ => (),
             }
-
-            let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
-            self.context.set_enpassant(enpassant_target);
-
-            let captured_piece = self.inner_board.place_piece(target, &piece);
-            self.history.push(moves::TakenMove::PieceMove {
-                m: *m,
-                captured_piece,
-                ctx: saved_context,
-            });
+            piece::Kind::Rook => {
+                if piece.get_color() == piece::Color::White {
+                    if start == WHITE_QSIDE_ROOK_START {
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Queenside);
+                    } else if start == WHITE_KSIDE_ROOK_START {
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Kingside);
+                    }
+                } else {
+                    if start == BLACK_QSIDE_ROOK_START {
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Queenside);
+                    } else if start == BLACK_KSIDE_ROOK_START {
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Kingside);
+                    }
+                }
+            }
+            _ => (),
         }
+
+        let captured_piece = self.inner_board.place_piece(target, &piece);
+        self.history.push(moves::TakenMove::PieceMove {
+            m: *m,
+            captured_piece,
+            ctx: saved_context,
+        });
+
+        // TODO: make should_set_enpassant assume that the move is a pawn move,
+        // and call it within a piece::Kind::Pawn arm of the match above
+        let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
+        self.context.set_enpassant(enpassant_target);
     }
 
-    /// Handles pawn promotions.
+    /// Handles all legal or pseudo-legal pawn promotions.
+    ///
+    /// # Panics
+    /// This method panics if there is no piece on the start square of the
+    /// `moves::Move`.
     fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) {
         let saved_context = self.context.clone();
 
