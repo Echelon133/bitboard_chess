@@ -67,6 +67,86 @@ const WHITE_KSIDE_ROOK_START: square::Square =
 const BLACK_KSIDE_ROOK_START: square::Square =
     square::Square::new(square::Rank::R8, square::File::H);
 
+/// Contains info about squares which are used during undoing of white kingside castling.
+///
+/// Order of elements: (
+/// rook_start_square,
+/// rook_target_square,
+/// king_start_square,
+/// king_target_square
+/// )
+const WHITE_KSIDE_CASTLING_INFO: (
+    square::Square,
+    square::Square,
+    square::Square,
+    square::Square,
+) = (
+    square::Square::new(square::Rank::R1, square::File::F),
+    square::Square::new(square::Rank::R1, square::File::H),
+    square::Square::new(square::Rank::R1, square::File::G),
+    square::Square::new(square::Rank::R1, square::File::E),
+);
+
+/// Contains info about squares which are used during undoing of black kingside castling.
+///
+/// Order of elements: (
+/// rook_start_square,
+/// rook_target_square,
+/// king_start_square,
+/// king_target_square
+/// )
+const BLACK_KSIDE_CASTLING_INFO: (
+    square::Square,
+    square::Square,
+    square::Square,
+    square::Square,
+) = (
+    square::Square::new(square::Rank::R8, square::File::F),
+    square::Square::new(square::Rank::R8, square::File::H),
+    square::Square::new(square::Rank::R8, square::File::G),
+    square::Square::new(square::Rank::R8, square::File::E),
+);
+
+/// Contains info about squares which are used during undoing of white queenside castling.
+///
+/// Order of elements: (
+/// rook_start_square,
+/// rook_target_square,
+/// king_start_square,
+/// king_target_square
+/// )
+const WHITE_QSIDE_CASTLING_INFO: (
+    square::Square,
+    square::Square,
+    square::Square,
+    square::Square,
+) = (
+    square::Square::new(square::Rank::R1, square::File::D),
+    square::Square::new(square::Rank::R1, square::File::A),
+    square::Square::new(square::Rank::R1, square::File::C),
+    square::Square::new(square::Rank::R1, square::File::E),
+);
+
+/// Contains info about squares which are used during undoing of black queenside castling.
+///
+/// Order of elements: (
+/// rook_start_square,
+/// rook_target_square,
+/// king_start_square,
+/// king_target_square
+/// )
+const BLACK_QSIDE_CASTLING_INFO: (
+    square::Square,
+    square::Square,
+    square::Square,
+    square::Square,
+) = (
+    square::Square::new(square::Rank::R8, square::File::D),
+    square::Square::new(square::Rank::R8, square::File::A),
+    square::Square::new(square::Rank::R8, square::File::C),
+    square::Square::new(square::Rank::R8, square::File::E),
+);
+
 /// Describes the end result of the game.
 #[derive(Debug, Copy, Clone)]
 pub enum GameResult {
@@ -686,43 +766,13 @@ impl Chessboard {
     #[inline(always)]
     fn undo_castling(&mut self, s: context::Side, ctx: &context::Context) {
         let color_castled = ctx.get_color_to_play();
-        // TODO: make these tuples with squares global static
+
         let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
-            match color_castled {
-                piece::Color::White => {
-                    if s == context::Side::Queenside {
-                        (
-                            square::Square::try_from("d1").unwrap(),
-                            square::Square::try_from("a1").unwrap(),
-                            square::Square::try_from("c1").unwrap(),
-                            square::Square::try_from("e1").unwrap(),
-                        )
-                    } else {
-                        (
-                            square::Square::try_from("f1").unwrap(),
-                            square::Square::try_from("h1").unwrap(),
-                            square::Square::try_from("g1").unwrap(),
-                            square::Square::try_from("e1").unwrap(),
-                        )
-                    }
-                }
-                piece::Color::Black => {
-                    if s == context::Side::Queenside {
-                        (
-                            square::Square::try_from("d8").unwrap(),
-                            square::Square::try_from("a8").unwrap(),
-                            square::Square::try_from("c8").unwrap(),
-                            square::Square::try_from("e8").unwrap(),
-                        )
-                    } else {
-                        (
-                            square::Square::try_from("f8").unwrap(),
-                            square::Square::try_from("h8").unwrap(),
-                            square::Square::try_from("g8").unwrap(),
-                            square::Square::try_from("e8").unwrap(),
-                        )
-                    }
-                }
+            match (color_castled, s) {
+                (piece::Color::White, context::Side::Queenside) => WHITE_QSIDE_CASTLING_INFO,
+                (piece::Color::White, context::Side::Kingside) => WHITE_KSIDE_CASTLING_INFO,
+                (piece::Color::Black, context::Side::Queenside) => BLACK_QSIDE_CASTLING_INFO,
+                (piece::Color::Black, context::Side::Kingside) => BLACK_KSIDE_CASTLING_INFO,
             };
 
         // swap the king and the rook
