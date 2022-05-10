@@ -167,6 +167,11 @@ impl Board {
             piece::Color::Black => &mut self.black_taken,
         }
     }
+
+    /// Returns a pair of (white_taken, black_taken) bitboards.
+    pub fn get_squares_taken_pair(&self) -> (&bitboard::Bitboard, &bitboard::Bitboard) {
+        (&self.white_taken, &self.black_taken)
+    }
 }
 
 impl TryFrom<&str> for Board {

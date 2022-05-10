@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::context;
 use crate::piece;
 use crate::square;
 
@@ -172,6 +173,39 @@ impl TryFrom<&str> for UCIMove {
             Ok(uci_move)
         }
     }
+}
+
+/// Represents a move that has appeared on the chessboard and is reversible. Stores all information
+/// that is required for undoing the move.
+///
+/// Every move needs to save [`context::Context`] of the chessboard that was there before
+/// the move appeared on the board. This is required, because not restoring the state
+/// of the context after undoing a move results in incorrect state of the board, e.g.:
+/// - incorrect move counter value
+/// - losing information about a possibility of capturing en passant
+/// - losing information about a possiblity of castling
+///
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum TakenMove {
+    /// Represents piece moves (including captures, but without pawn promotions).
+    PieceMove {
+        m: Move,
+        captured_piece: Option<piece::Piece>,
+        ctx: context::Context,
+    },
+    /// Represents pawn promotions.
+    Promotion {
+        m: Move,
+        captured_piece: Option<piece::Piece>,
+        ctx: context::Context,
+    },
+    /// Represents en passant captures.
+    EnPassant { m: Move, ctx: context::Context },
+    /// Represents castling.
+    Castling {
+        s: context::Side,
+        ctx: context::Context,
+    },
 }
 
 #[cfg(test)]

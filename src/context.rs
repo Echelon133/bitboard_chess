@@ -4,7 +4,7 @@ use crate::piece;
 use crate::square;
 
 /// Represents a side of castling.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Side {
     Queenside,
     Kingside,
@@ -22,7 +22,7 @@ pub enum Side {
 /// Without restoring the context, reversal of moves that change it
 /// might cause the board to enter an invalid state.
 ///
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Hash, Eq)]
 pub struct Context {
     castling_flags: u8,
     enpassant: Option<square::Square>,
