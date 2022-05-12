@@ -452,6 +452,32 @@ impl Chessboard {
         }
     }
 
+    /// Disables one side of castling if player's rook had been captured on
+    /// it's original square and is no longer there to allow castling.
+    ///
+    /// Should be called after every move that can capture a piece, so that there is no
+    /// possibility of castling flags remaining set when player no longer has a certain rook.
+    fn disable_castling_if_rook_captured(
+        &mut self,
+        captured_piece: &Option<piece::Piece>,
+        captured_square: square::Square,
+    ) {
+        if let Some(captured_piece) = captured_piece {
+            if captured_piece.get_kind() == piece::Kind::Rook {
+                let side = match (captured_piece.get_color(), captured_square) {
+                    // check if the captured square is a square where rooks of that color start
+                    (piece::Color::White, WHITE_KSIDE_ROOK_START) => context::Side::Kingside,
+                    (piece::Color::White, WHITE_QSIDE_ROOK_START) => context::Side::Queenside,
+                    (piece::Color::Black, BLACK_KSIDE_ROOK_START) => context::Side::Kingside,
+                    (piece::Color::Black, BLACK_QSIDE_ROOK_START) => context::Side::Queenside,
+                    _ => return,
+                };
+                self.context
+                    .disable_castling(captured_piece.get_color(), side);
+            }
+        }
+    }
+
     /// Returns [`square::Square`] with en passant target square if, and only if:
     /// - the `piece` is a pawn
     /// - the [`moves::Move`] describes a move forward by two squares from the initial rank
@@ -670,6 +696,7 @@ impl Chessboard {
         }
 
         let captured_piece = self.inner_board.place_piece(target, &piece);
+        self.disable_castling_if_rook_captured(&captured_piece, target);
         let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::PieceMove {
             m: *m,
@@ -696,7 +723,7 @@ impl Chessboard {
         let promoted_pawn = self.inner_board.remove_piece(start).unwrap();
         let promotion_goal = piece::Piece::new(k, promoted_pawn.get_color());
         let captured_piece = self.inner_board.place_piece(target, &promotion_goal);
-
+        self.disable_castling_if_rook_captured(&captured_piece, target);
         let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::Promotion {
             m: *m,
