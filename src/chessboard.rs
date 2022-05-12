@@ -28,8 +28,7 @@ const BLACK_KINGSIDE_CASTLING_PATH: [square::Square; 3] = [
 /// Squares that create a path between the white king and A1 rook,
 /// which cannot be attacked by a black piece if the player wants to
 /// legally castle.
-const WHITE_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
-    square::Square::new(square::Rank::R1, square::File::B),
+const WHITE_QUEENSIDE_CASTLING_PATH: [square::Square; 3] = [
     square::Square::new(square::Rank::R1, square::File::C),
     square::Square::new(square::Rank::R1, square::File::D),
     square::Square::new(square::Rank::R1, square::File::E),
@@ -38,8 +37,7 @@ const WHITE_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
 /// Squares that create a path between the black king and A8 rook,
 /// which cannot be attacked by a white piece if the player wants to
 /// legally castle.
-const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 4] = [
-    square::Square::new(square::Rank::R8, square::File::B),
+const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 3] = [
     square::Square::new(square::Rank::R8, square::File::C),
     square::Square::new(square::Rank::R8, square::File::D),
     square::Square::new(square::Rank::R8, square::File::E),
@@ -1103,7 +1101,6 @@ Fullmove: 14
             "rnb1kbnr/p3pppp/8/q7/8/8/P3PPPP/R3KBNR w KQkq - 0 1", // e1 attacked
             "rnb1kbnr/p3pppp/8/3q4/8/8/P3PPPP/R3KBNR w KQkq - 0 1", // d1 attacked
             "rnb1kbnr/p3pppp/8/2q5/8/8/P3PPPP/R3KBNR w KQkq - 0 1", // c1 attacked
-            "rnb1kbnr/p3pppp/8/1q6/8/8/P3PPPP/R3KBNR w KQkq - 0 1", // b1 attacked
         ];
 
         let white_castling_move = moves::UCIMove::try_from("e1c1").unwrap();
@@ -1120,7 +1117,6 @@ Fullmove: 14
             "r3kbnr/p3pppp/8/8/Q7/8/P3PPPP/RNB1KBNR b KQkq - 0 1", // e8 attacked
             "r3kbnr/p3pppp/8/8/3Q4/8/P3PPPP/RNB1KBNR b KQkq - 0 1", // d8 attacked
             "r3kbnr/p3pppp/8/8/2Q5/8/P3PPPP/RNB1KBNR b KQkq - 0 1", // c8 attacked
-            "r3kbnr/p3pppp/8/8/1Q6/8/P3PPPP/RNB1KBNR b KQkq - 0 1", // b8 attacked
         ];
 
         let black_castling_move = moves::UCIMove::try_from("e8c8").unwrap();
@@ -1153,22 +1149,34 @@ Fullmove: 14
     }
 
     #[test]
-    fn chessboard_can_castle_queenside_when_only_rook_attacked() {
-        // attack white a1 rook
-        let rook_a1_attacked = "r3kbnr/p3pppp/8/4q3/8/8/P3PPPP/R3KBNR w KQkq - 0 1";
-        let white_castling_move = moves::UCIMove::try_from("e1c1").unwrap();
-        let mut board = Chessboard::try_from(rook_a1_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
-        // should contain the move, because castling when only the rook is attacked is legal
-        assert!(available_moves.contains(&white_castling_move));
+    fn chessboard_can_castle_queenside_when_outside_path_attacked() {
+        // both rook on a1 and the square b1 can be attacked without temporarily disabling
+        // queenside castling
+        let fens = [
+            "r3kbnr/p3pppp/8/4q3/8/8/P3PPPP/R3KBNR w KQkq - 0 1", // white rook a1 attacked
+            "r3kbnr/p3pppp/8/8/8/n7/P3PPPP/R3KBNR w KQkq - 0 1",  // empty b1 is attacked
+        ];
 
-        // attack black a8 rook
-        let rook_a8_attacked = "r3kbnr/p3pppp/8/8/4Q3/8/P3PPPP/R3KBNR b KQkq - 0 1";
-        let black_castling_move = moves::UCIMove::try_from("e8c8").unwrap();
-        let mut board = Chessboard::try_from(rook_a8_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
-        // should contain the move, because castling when only the rook is attacked is legal
-        assert!(available_moves.contains(&black_castling_move));
+        for fen in fens {
+            let white_castling_move = moves::UCIMove::try_from("e1c1").unwrap();
+            let mut board = Chessboard::try_from(fen).unwrap();
+            let available_moves = board.find_all_legal_moves();
+            assert!(available_moves.contains(&white_castling_move));
+        }
+
+        // both rook on a8 and the square b8 can be attacked without temporarily disabling
+        // queenside castling
+        let fens = [
+            "r3kbnr/p3pppp/8/8/1Q6/8/P3PPPP/RNB1KBNR b KQkq - 0 1", // black rook a8 attacked
+            "r3kbnr/p3pppp/N7/8/8/8/P3PPPP/R1B1KBNR b KQkq - 0 1",  // empty b8 is attacked
+        ];
+
+        for fen in fens {
+            let black_castling_move = moves::UCIMove::try_from("e8c8").unwrap();
+            let mut board = Chessboard::try_from(fen).unwrap();
+            let available_moves = board.find_all_legal_moves();
+            assert!(available_moves.contains(&black_castling_move));
+        }
     }
 }
 
