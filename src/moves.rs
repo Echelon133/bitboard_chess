@@ -101,7 +101,7 @@ impl Debug for Move {
 /// Only promoting moves require additional information, so that it's known what
 /// kind of piece is supposed to appear on the board during pawn promotion.
 ///
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum UCIMove {
     /// Represents piece moves (including captures, but without pawn promotions),
     /// castling, en-passant captures.
