@@ -147,11 +147,35 @@ const BLACK_QSIDE_CASTLING_INFO: (
     square::Square::new(square::Rank::R8, square::File::E),
 );
 
-/// Describes the end result of the game.
+/// Holds information about a move that's been executed on the board.
+///
+/// This struct is used for storing information that's used for verifying correctness
+/// of the implementation. All captures, en passants, castles, promotions and checks
+/// are being counted, so that they can be later compared to results of other chess engines.
+#[derive(Copy, Clone, Debug)]
+pub struct MoveInfo {
+    pub captured_piece: bool,
+    pub took_enpassant: bool,
+    pub castled: bool,
+    pub promoted: bool,
+    pub checked_opponent: bool,
+}
+
+/// Describes the result of a move. Apart from that, it carries debug information about captures,
+/// en passants, castles, promotions and checks that happened in that move.
 #[derive(Debug, Copy, Clone)]
-pub enum GameResult {
-    Checkmate { winner: piece::Color },
-    Draw { stalemate: bool },
+pub enum MoveResult {
+    Checkmate {
+        winner: piece::Color,
+        info: MoveInfo,
+    },
+    Draw {
+        stalemate: bool,
+        info: MoveInfo,
+    },
+    Continues {
+        info: MoveInfo,
+    },
 }
 
 /// Represents a playable chessboard.
@@ -167,7 +191,7 @@ pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
     history: Vec<moves::TakenMove>,
-    end_result: Option<GameResult>,
+    end_result: Option<MoveResult>,
 }
 
 impl Chessboard {
@@ -180,22 +204,27 @@ impl Chessboard {
     /// Apart from that, this method updates the context of the chessboard, so that
     /// the color of the next player is set (which might also update the fullmove counter).
     ///
-    /// If the move does not end the game, `Result` with [`None`] is returned.
-    /// Otherwise, a `Result` with correct [`GameResult`] is returned.
+    /// Every move (except illegal ones) returns an `Ok` that contains a `MoveResult` with
+    /// information about what happend in that move (if there was a capture, en passant,
+    /// castle, promotion, check). This information greatly improves the debugging experience.
     ///
     /// NOTE: this method checks moves for their legality only in the release mode.
     /// While in test mode, these checks are disabled, because all moves that are
     /// given to this method to execute are taken from legal move generating functions,
     /// so move legality checks are omitted for performance reasons.
-    ///
-    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<Option<GameResult>, &'static str> {
+    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, &'static str> {
+        let captured_piece;
+        let mut took_enpassant = false;
+        let mut castled = false;
+        let mut promoted = false;
+
         // don't compile this check in test mode, because all tests immediately stop
         // playing the game when they receive `GameResult` and do not attempt to further
         // play a game that's already finished
         #[cfg(not(test))]
         {
             if self.end_result.is_some() {
-                return Ok(self.end_result);
+                return Ok(self.end_result.unwrap());
             }
         }
 
@@ -212,10 +241,14 @@ impl Chessboard {
 
         match m {
             moves::UCIMove::Regular { m: mv } => {
-                self.handle_regular_move(mv);
+                let (capture, enpassant, castle) = self.handle_regular_move(mv);
+                captured_piece = capture;
+                took_enpassant = enpassant;
+                castled = castle;
             }
             moves::UCIMove::Promotion { m: mv, k: kind } => {
-                self.handle_promotion_move(mv, *kind);
+                captured_piece = self.handle_promotion_move(mv, *kind);
+                promoted = true;
             }
         }
 
@@ -231,6 +264,14 @@ impl Chessboard {
         let num_next_player_moves = self.find_all_legal_moves().iter().count();
         let is_king_in_check = self.is_king_in_check(color_to_play);
 
+        let info = MoveInfo {
+            captured_piece,
+            took_enpassant,
+            castled,
+            promoted,
+            checked_opponent: is_king_in_check,
+        };
+
         if num_next_player_moves == 0 {
             if is_king_in_check {
                 // the winner is the previous color
@@ -238,21 +279,28 @@ impl Chessboard {
                     piece::Color::White => piece::Color::Black,
                     piece::Color::Black => piece::Color::White,
                 };
-                self.end_result = Some(GameResult::Checkmate { winner });
+                self.end_result = Some(MoveResult::Checkmate { winner, info });
             } else {
-                self.end_result = Some(GameResult::Draw { stalemate: true });
+                self.end_result = Some(MoveResult::Draw {
+                    stalemate: true,
+                    info,
+                });
             }
-            Ok(self.end_result)
+            Ok(self.end_result.unwrap())
         } else {
             let (white_taken, black_taken) = self.inner_board.get_squares_taken_pair();
             // both players only have their kings, therefore it's a draw
             if white_taken.count_set() == 1 && black_taken.count_set() == 1 {
-                Ok(Some(GameResult::Draw { stalemate: false }))
+                self.end_result = Some(MoveResult::Draw {
+                    stalemate: false,
+                    info,
+                });
+                Ok(self.end_result.unwrap())
             } else {
                 // TODO: implement detection of draws which happen because:
                 // - the halfmoves counter reached 50
                 // - there is not enough material to checkmate
-                Ok(None)
+                Ok(MoveResult::Continues { info })
             }
         }
     }
@@ -436,21 +484,26 @@ impl Chessboard {
     }
 
     /// Handles all legal or pseudo-legal moves that are not pawn promotions.
+    /// Returns `(bool, bool, bool)` which represents information about events
+    /// that happened during this move: (captured_piece, took_enpassant, castled).
     ///
     /// To handle pawn promotions, use [`Self::handle_promotion_move`]
     ///
     /// # Panics
     /// This method will panic if the given move is incorrect for the given board state,
     /// and e.g. wants to move a piece from a square that's not occupied.
-    fn handle_regular_move(&mut self, m: &moves::Move) {
+    fn handle_regular_move(&mut self, m: &moves::Move) -> (bool, bool, bool) {
         let piece = self.inner_board.get_piece(m.get_start()).unwrap();
 
         if Chessboard::is_enpassant(&piece, m, self.context.get_enpassant()) {
             self.handle_enpassant_move(m);
+            (true, true, false)
         } else if let Some(side) = Chessboard::is_castling(&piece, m) {
             self.handle_castling_move(m, side);
+            (false, false, true)
         } else {
-            self.handle_piece_move(m);
+            let captured_piece = self.handle_piece_move(m);
+            (captured_piece, false, false)
         }
     }
 
@@ -557,7 +610,7 @@ impl Chessboard {
     /// Handles all legal or pseudo-legal moves that are NOT castling,
     /// en passant or pawn promotions. Updates castling flags depending on which pieces
     /// moved. Sets en passant target square when a pawn gets moved two squares from it's
-    /// initial rank.
+    /// initial rank. Returns `true` if the move resulted in a capture of opponent's piece.
     ///
     /// This means that:
     /// - both sides of castling are disabled if the king moves from it's initial square
@@ -568,7 +621,7 @@ impl Chessboard {
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
     #[inline(always)]
-    fn handle_piece_move(&mut self, m: &moves::Move) {
+    fn handle_piece_move(&mut self, m: &moves::Move) -> bool {
         let saved_context = self.context.clone();
         let (start, target) = (m.get_start(), m.get_target());
         let piece = self.inner_board.remove_piece(start).unwrap();
@@ -617,6 +670,7 @@ impl Chessboard {
         }
 
         let captured_piece = self.inner_board.place_piece(target, &piece);
+        let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::PieceMove {
             m: *m,
             captured_piece,
@@ -627,6 +681,7 @@ impl Chessboard {
         // and call it within a piece::Kind::Pawn arm of the match above
         let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
         self.context.set_enpassant(enpassant_target);
+        was_capturing
     }
 
     /// Handles all legal or pseudo-legal pawn promotions.
@@ -634,7 +689,7 @@ impl Chessboard {
     /// # Panics
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
-    fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) {
+    fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) -> bool {
         let saved_context = self.context.clone();
 
         let (start, target) = (m.get_start(), m.get_target());
@@ -642,11 +697,13 @@ impl Chessboard {
         let promotion_goal = piece::Piece::new(k, promoted_pawn.get_color());
         let captured_piece = self.inner_board.place_piece(target, &promotion_goal);
 
+        let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::Promotion {
             m: *m,
             captured_piece,
             ctx: saved_context,
         });
+        was_capturing
     }
 
     /// Undoes the last legal or pseudo-legal move and restores the context of
