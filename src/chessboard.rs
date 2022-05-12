@@ -147,11 +147,35 @@ const BLACK_QSIDE_CASTLING_INFO: (
     square::Square::new(square::Rank::R8, square::File::E),
 );
 
-/// Describes the end result of the game.
+/// Holds information about a move that's been executed on the board.
+///
+/// This struct is used for storing information that's used for verifying correctness
+/// of the implementation. All captures, en passants, castles, promotions and checks
+/// are being counted, so that they can be later compared to results of other chess engines.
+#[derive(Copy, Clone, Debug)]
+pub struct MoveInfo {
+    pub captured_piece: bool,
+    pub took_enpassant: bool,
+    pub castled: bool,
+    pub promoted: bool,
+    pub checked_opponent: bool,
+}
+
+/// Describes the result of a move. Apart from that, it carries debug information about captures,
+/// en passants, castles, promotions and checks that happened in that move.
 #[derive(Debug, Copy, Clone)]
-pub enum GameResult {
-    Checkmate { winner: piece::Color },
-    Draw { stalemate: bool },
+pub enum MoveResult {
+    Checkmate {
+        winner: piece::Color,
+        info: MoveInfo,
+    },
+    Draw {
+        stalemate: bool,
+        info: MoveInfo,
+    },
+    Continues {
+        info: MoveInfo,
+    },
 }
 
 /// Represents a playable chessboard.
@@ -167,7 +191,7 @@ pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
     history: Vec<moves::TakenMove>,
-    end_result: Option<GameResult>,
+    end_result: Option<MoveResult>,
 }
 
 impl Chessboard {
@@ -180,22 +204,27 @@ impl Chessboard {
     /// Apart from that, this method updates the context of the chessboard, so that
     /// the color of the next player is set (which might also update the fullmove counter).
     ///
-    /// If the move does not end the game, `Result` with [`None`] is returned.
-    /// Otherwise, a `Result` with correct [`GameResult`] is returned.
+    /// Every move (except illegal ones) returns an `Ok` that contains a `MoveResult` with
+    /// information about what happend in that move (if there was a capture, en passant,
+    /// castle, promotion, check). This information greatly improves the debugging experience.
     ///
     /// NOTE: this method checks moves for their legality only in the release mode.
     /// While in test mode, these checks are disabled, because all moves that are
     /// given to this method to execute are taken from legal move generating functions,
     /// so move legality checks are omitted for performance reasons.
-    ///
-    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<Option<GameResult>, &'static str> {
+    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, &'static str> {
+        let captured_piece;
+        let mut took_enpassant = false;
+        let mut castled = false;
+        let mut promoted = false;
+
         // don't compile this check in test mode, because all tests immediately stop
         // playing the game when they receive `GameResult` and do not attempt to further
         // play a game that's already finished
         #[cfg(not(test))]
         {
             if self.end_result.is_some() {
-                return Ok(self.end_result);
+                return Ok(self.end_result.unwrap());
             }
         }
 
@@ -212,10 +241,14 @@ impl Chessboard {
 
         match m {
             moves::UCIMove::Regular { m: mv } => {
-                self.handle_regular_move(mv);
+                let (capture, enpassant, castle) = self.handle_regular_move(mv);
+                captured_piece = capture;
+                took_enpassant = enpassant;
+                castled = castle;
             }
             moves::UCIMove::Promotion { m: mv, k: kind } => {
-                self.handle_promotion_move(mv, *kind);
+                captured_piece = self.handle_promotion_move(mv, *kind);
+                promoted = true;
             }
         }
 
@@ -231,6 +264,14 @@ impl Chessboard {
         let num_next_player_moves = self.find_all_legal_moves().iter().count();
         let is_king_in_check = self.is_king_in_check(color_to_play);
 
+        let info = MoveInfo {
+            captured_piece,
+            took_enpassant,
+            castled,
+            promoted,
+            checked_opponent: is_king_in_check,
+        };
+
         if num_next_player_moves == 0 {
             if is_king_in_check {
                 // the winner is the previous color
@@ -238,21 +279,28 @@ impl Chessboard {
                     piece::Color::White => piece::Color::Black,
                     piece::Color::Black => piece::Color::White,
                 };
-                self.end_result = Some(GameResult::Checkmate { winner });
+                self.end_result = Some(MoveResult::Checkmate { winner, info });
             } else {
-                self.end_result = Some(GameResult::Draw { stalemate: true });
+                self.end_result = Some(MoveResult::Draw {
+                    stalemate: true,
+                    info,
+                });
             }
-            Ok(self.end_result)
+            Ok(self.end_result.unwrap())
         } else {
             let (white_taken, black_taken) = self.inner_board.get_squares_taken_pair();
             // both players only have their kings, therefore it's a draw
             if white_taken.count_set() == 1 && black_taken.count_set() == 1 {
-                Ok(Some(GameResult::Draw { stalemate: false }))
+                self.end_result = Some(MoveResult::Draw {
+                    stalemate: false,
+                    info,
+                });
+                Ok(self.end_result.unwrap())
             } else {
                 // TODO: implement detection of draws which happen because:
                 // - the halfmoves counter reached 50
                 // - there is not enough material to checkmate
-                Ok(None)
+                Ok(MoveResult::Continues { info })
             }
         }
     }
@@ -436,21 +484,26 @@ impl Chessboard {
     }
 
     /// Handles all legal or pseudo-legal moves that are not pawn promotions.
+    /// Returns `(bool, bool, bool)` which represents information about events
+    /// that happened during this move: (captured_piece, took_enpassant, castled).
     ///
     /// To handle pawn promotions, use [`Self::handle_promotion_move`]
     ///
     /// # Panics
     /// This method will panic if the given move is incorrect for the given board state,
     /// and e.g. wants to move a piece from a square that's not occupied.
-    fn handle_regular_move(&mut self, m: &moves::Move) {
+    fn handle_regular_move(&mut self, m: &moves::Move) -> (bool, bool, bool) {
         let piece = self.inner_board.get_piece(m.get_start()).unwrap();
 
         if Chessboard::is_enpassant(&piece, m, self.context.get_enpassant()) {
             self.handle_enpassant_move(m);
+            (true, true, false)
         } else if let Some(side) = Chessboard::is_castling(&piece, m) {
             self.handle_castling_move(m, side);
+            (false, false, true)
         } else {
-            self.handle_piece_move(m);
+            let captured_piece = self.handle_piece_move(m);
+            (captured_piece, false, false)
         }
     }
 
@@ -557,7 +610,7 @@ impl Chessboard {
     /// Handles all legal or pseudo-legal moves that are NOT castling,
     /// en passant or pawn promotions. Updates castling flags depending on which pieces
     /// moved. Sets en passant target square when a pawn gets moved two squares from it's
-    /// initial rank.
+    /// initial rank. Returns `true` if the move resulted in a capture of opponent's piece.
     ///
     /// This means that:
     /// - both sides of castling are disabled if the king moves from it's initial square
@@ -568,7 +621,7 @@ impl Chessboard {
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
     #[inline(always)]
-    fn handle_piece_move(&mut self, m: &moves::Move) {
+    fn handle_piece_move(&mut self, m: &moves::Move) -> bool {
         let saved_context = self.context.clone();
         let (start, target) = (m.get_start(), m.get_target());
         let piece = self.inner_board.remove_piece(start).unwrap();
@@ -617,6 +670,7 @@ impl Chessboard {
         }
 
         let captured_piece = self.inner_board.place_piece(target, &piece);
+        let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::PieceMove {
             m: *m,
             captured_piece,
@@ -627,6 +681,7 @@ impl Chessboard {
         // and call it within a piece::Kind::Pawn arm of the match above
         let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
         self.context.set_enpassant(enpassant_target);
+        was_capturing
     }
 
     /// Handles all legal or pseudo-legal pawn promotions.
@@ -634,7 +689,7 @@ impl Chessboard {
     /// # Panics
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
-    fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) {
+    fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) -> bool {
         let saved_context = self.context.clone();
 
         let (start, target) = (m.get_start(), m.get_target());
@@ -642,11 +697,13 @@ impl Chessboard {
         let promotion_goal = piece::Piece::new(k, promoted_pawn.get_color());
         let captured_piece = self.inner_board.place_piece(target, &promotion_goal);
 
+        let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::Promotion {
             m: *m,
             captured_piece,
             ctx: saved_context,
         });
+        was_capturing
     }
 
     /// Undoes the last legal or pseudo-legal move and restores the context of
@@ -1085,5 +1142,401 @@ Fullmove: 14
         let available_moves = board.find_all_legal_moves();
         // should contain the move, because castling when only the rook is attacked is legal
         assert!(available_moves.contains(&black_castling_move));
+    }
+}
+
+#[cfg(test)]
+mod perft {
+    use crate::chessboard::*;
+    use std::{collections::HashMap, ops::AddAssign};
+
+    /// Used for storing results of running perft on a certain depth.
+    #[derive(Debug, PartialEq, Copy, Clone)]
+    struct PerftResult {
+        pub nodes: u64,
+        pub checkmates: u64,
+        pub captures: u64,
+        pub enpassants: u64,
+        pub castles: u64,
+        pub promotions: u64,
+        pub checks: u64,
+    }
+
+    impl PerftResult {
+        fn new(
+            nodes: u64,
+            checkmates: u64,
+            captures: u64,
+            enpassants: u64,
+            castles: u64,
+            promotions: u64,
+            checks: u64,
+        ) -> Self {
+            Self {
+                nodes,
+                checkmates,
+                captures,
+                enpassants,
+                castles,
+                promotions,
+                checks,
+            }
+        }
+    }
+
+    impl Default for PerftResult {
+        fn default() -> Self {
+            Self {
+                nodes: 0,
+                checkmates: 0,
+                captures: 0,
+                enpassants: 0,
+                castles: 0,
+                promotions: 0,
+                checks: 0,
+            }
+        }
+    }
+
+    /// Updates `PerftResult` counters based on information received from the `MoveInfo`.
+    #[inline(always)]
+    fn perft_update_results(result: &mut PerftResult, info: MoveInfo) {
+        if info.captured_piece {
+            result.captures += 1;
+        }
+
+        if info.took_enpassant {
+            result.enpassants += 1;
+        }
+
+        if info.castled {
+            result.castles += 1;
+        }
+
+        if info.promoted {
+            result.promotions += 1;
+        }
+
+        if info.checked_opponent {
+            result.checks += 1;
+        }
+    }
+
+    /// Enumerates all possible legal paths from a certain position up to `depth_max`. Apart
+    /// from enumeration, it collects info about things like captures, en passants, promotions,
+    /// checkmates, etc.
+    ///
+    /// This perft counts leaf nodes of move subtrees that have started from a certain
+    /// initial move. This means that, e.g. initial position has 20 possible legal moves
+    /// that can begin the game. On depth 2, after each one of these start moves, black
+    /// also has 20 legal moves. This means, that all position subtrees have 20 leaf nodes
+    /// for each initial move that could be played on the board.
+    ///
+    /// See: https://www.chessprogramming.org/Perft
+    fn perft(board: &mut Chessboard, depth_max: u8, results: &mut HashMap<u8, PerftResult>) {
+        let all_initial_moves = board.find_all_legal_moves();
+        let mut leaf_counters: HashMap<moves::UCIMove, std::cell::RefCell<usize>> = HashMap::new();
+
+        for initial_move in &all_initial_moves {
+            // when counting nodes, the first move is the key of the node which is then propagated
+            // further, until a leaf node is reached, when the counter is incremented by 1
+            leaf_counters.insert(initial_move.clone(), std::cell::RefCell::new(0));
+
+            // propagate this counter to all perft calls that start from this initial_move
+            //
+            // e.g. if the first move was e2e4, propagate the "e2e4" counter to all perft calls
+            // that continue the sequence started by that move
+            let mut leaf_counter = leaf_counters.get(&initial_move).unwrap().borrow_mut();
+
+            // if depth was 1
+            if depth_max == 1 {
+                leaf_counter.add_assign(1);
+            }
+
+            let result = results.entry(1).or_insert(PerftResult::default());
+            result.nodes += 1;
+
+            let game_result = board.execute_move(initial_move).unwrap();
+            match game_result {
+                MoveResult::Continues { info } => {
+                    perft_update_results(result, info);
+                    // game is not over yet, keep playing,
+                    // start from depth 2, because depth 1 has been explored by the execute_move
+                    // above
+                    perft_count_nodes(board, 2, depth_max, results, &mut leaf_counter);
+                    board.undo_last_move();
+                }
+                MoveResult::Checkmate { winner: _, info } => {
+                    perft_update_results(result, info);
+                    result.checkmates += 1;
+                    // checkmate on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+                MoveResult::Draw { stalemate: _, info } => {
+                    perft_update_results(result, info);
+                    // draw on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+            }
+        }
+
+        // there is as many counters as there were legal moves at the depth 1 of the explored position
+        println!("================NODES===============");
+        for (k, v) in leaf_counters.iter() {
+            println!("{:?}: {}", k, v.borrow());
+        }
+        println!("====================================");
+    }
+
+    /// Perft that explores all possible positions that could occur after some initial move
+    /// has been played on the board.
+    fn perft_count_nodes(
+        board: &mut Chessboard,
+        depth: u8,
+        depth_max: u8,
+        results: &mut HashMap<u8, PerftResult>,
+        leaf_counter: &mut std::cell::RefMut<usize>,
+    ) {
+        // maximum depth reached
+        if depth > depth_max {
+            return;
+        }
+
+        let all_legal_moves = board.find_all_legal_moves();
+        for uci_move in &all_legal_moves {
+            let game_result = board.execute_move(uci_move).unwrap();
+
+            let result = results.entry(depth).or_insert(PerftResult::default());
+            result.nodes += 1;
+
+            // only count leaf nodes
+            if depth == depth_max {
+                leaf_counter.add_assign(1);
+            }
+
+            match game_result {
+                MoveResult::Continues { info } => {
+                    perft_update_results(result, info);
+                    // game is not over yet, keep playing
+                    perft_count_nodes(board, depth + 1, depth_max, results, leaf_counter);
+                    board.undo_last_move();
+                }
+                MoveResult::Checkmate { winner: _, info } => {
+                    perft_update_results(result, info);
+                    result.checkmates += 1;
+                    // checkmate on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+                MoveResult::Draw { stalemate: _, info } => {
+                    perft_update_results(result, info);
+                    // draw on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+            }
+        }
+    }
+
+    /// Helper function for printing results of perft.
+    fn perft_print_results(results: &HashMap<u8, PerftResult>, depth_max: u8) {
+        println!("============PERFT RESULTS============");
+        println!(
+            "{:>2}|{:>12}|{:>12}|{:>10}|{:>8}|{:>8}|{:>11}|{:>8}",
+            "D", "Nodes", "Checkmates", "Captures", "E.p", "Castles", "Promotions", "Checks",
+        );
+        for dpth in 1u8..=depth_max {
+            let result = &results[&dpth];
+
+            println!(
+                "{:>2}|{:>12}|{:>12}|{:>10}|{:>8}|{:>8}|{:>11}|{:>8}",
+                dpth,
+                result.nodes,
+                result.checkmates,
+                result.captures,
+                result.enpassants,
+                result.castles,
+                result.promotions,
+                result.checks,
+            );
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Initial_Position
+    #[test]
+    fn perft_initial_position() {
+        let mut board = Chessboard::default();
+        let depth_max = 6;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        // perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(20, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(400, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(8902, 0, 34, 0, 0, 0, 12),
+            PerftResult::new(197_281, 8, 1576, 0, 0, 0, 469),
+            PerftResult::new(4_865_609, 347, 82_719, 258, 0, 0, 27_351),
+            PerftResult::new(119_060_324, 10_828, 2_812_008, 5248, 0, 0, 809_099),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_2
+    #[test]
+    fn perft_second_position() {
+        let mut board = Chessboard::try_from(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        )
+        .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(48, 0, 8, 0, 2, 0, 0),
+            PerftResult::new(2039, 0, 351, 1, 91, 0, 3),
+            PerftResult::new(97_862, 1, 17_102, 45, 3162, 0, 993),
+            PerftResult::new(4_085_603, 43, 757_163, 1929, 128_013, 15_172, 25_523),
+            PerftResult::new(
+                193_690_690,
+                30_171,
+                35_043_416,
+                73_365,
+                4_993_637,
+                8392,
+                3_309_887,
+            ),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_3
+    #[test]
+    fn perft_third_position() {
+        let mut board = Chessboard::try_from("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+
+        let depth_max = 7;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(14, 0, 1, 0, 0, 0, 2),
+            PerftResult::new(191, 0, 14, 0, 0, 0, 10),
+            PerftResult::new(2812, 0, 209, 2, 0, 0, 267),
+            PerftResult::new(43_238, 17, 3348, 123, 0, 0, 1680),
+            PerftResult::new(674_624, 0, 52_051, 1165, 0, 0, 52_950),
+            PerftResult::new(11_030_083, 2733, 940_350, 33_325, 0, 7552, 452_473),
+            PerftResult::new(178_633_661, 87, 14_519_036, 294_874, 0, 140_024, 12_797_406),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_4
+    #[test]
+    fn perft_fourth_position() {
+        let mut board = Chessboard::try_from(
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        )
+        .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(6, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(264, 0, 87, 0, 6, 48, 10),
+            PerftResult::new(9467, 22, 1021, 4, 0, 120, 38),
+            PerftResult::new(422_333, 5, 131_393, 0, 7795, 60_032, 15_492),
+            PerftResult::new(15_833_292, 50_562, 2_046_173, 6512, 0, 329_464, 200_568),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_5
+    #[test]
+    fn perft_fifth_position() {
+        let mut board =
+            Chessboard::try_from("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+                .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [44, 1486, 62_379, 2_103_487, 89_941_194];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], result.nodes);
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_6
+    #[test]
+    fn perft_sixth_position() {
+        let mut board = Chessboard::try_from(
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        )
+        .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [46, 2079, 89_890, 3_894_594, 164_075_551];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], result.nodes);
+        }
     }
 }
