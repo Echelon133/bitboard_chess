@@ -1148,7 +1148,7 @@ Fullmove: 14
 #[cfg(test)]
 mod perft {
     use crate::chessboard::*;
-    use std::collections::HashMap;
+    use std::{collections::HashMap, ops::AddAssign};
 
     /// Used for storing results of running perft on a certain depth.
     #[derive(Debug, PartialEq, Copy, Clone)]
@@ -1226,12 +1226,80 @@ mod perft {
     /// from enumeration, it collects info about things like captures, en passants, promotions,
     /// checkmates, etc.
     ///
+    /// This perft counts leaf nodes of move subtrees that have started from a certain
+    /// initial move. This means that, e.g. initial position has 20 possible legal moves
+    /// that can begin the game. On depth 2, after each one of these start moves, black
+    /// also has 20 legal moves. This means, that all position subtrees have 20 leaf nodes
+    /// for each initial move that could be played on the board.
+    ///
     /// See: https://www.chessprogramming.org/Perft
-    fn perft(
+    fn perft(board: &mut Chessboard, depth_max: u8, results: &mut HashMap<u8, PerftResult>) {
+        let all_initial_moves = board.find_all_legal_moves();
+        let mut leaf_counters: HashMap<moves::UCIMove, std::cell::RefCell<usize>> = HashMap::new();
+
+        for initial_move in &all_initial_moves {
+            // when counting nodes, the first move is the key of the node which is then propagated
+            // further, until a leaf node is reached, when the counter is incremented by 1
+            leaf_counters.insert(initial_move.clone(), std::cell::RefCell::new(0));
+
+            // propagate this counter to all perft calls that start from this initial_move
+            //
+            // e.g. if the first move was e2e4, propagate the "e2e4" counter to all perft calls
+            // that continue the sequence started by that move
+            let mut leaf_counter = leaf_counters.get(&initial_move).unwrap().borrow_mut();
+
+            // if depth was 1
+            if depth_max == 1 {
+                leaf_counter.add_assign(1);
+            }
+
+            let result = results.entry(1).or_insert(PerftResult::default());
+            result.nodes += 1;
+
+            let game_result = board.execute_move(initial_move).unwrap();
+            match game_result {
+                MoveResult::Continues { info } => {
+                    perft_update_results(result, info);
+                    // game is not over yet, keep playing,
+                    // start from depth 2, because depth 1 has been explored by the execute_move
+                    // above
+                    perft_count_nodes(board, 2, depth_max, results, &mut leaf_counter);
+                    board.undo_last_move();
+                }
+                MoveResult::Checkmate { winner: _, info } => {
+                    perft_update_results(result, info);
+                    result.checkmates += 1;
+                    // checkmate on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+                MoveResult::Draw { stalemate: _, info } => {
+                    perft_update_results(result, info);
+                    // draw on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+            }
+        }
+
+        // there is as many counters as there were legal moves at the depth 1 of the explored position
+        println!("================NODES===============");
+        for (k, v) in leaf_counters.iter() {
+            println!("{:?}: {}", k, v.borrow());
+        }
+        println!("====================================");
+    }
+
+    /// Perft that explores all possible positions that could occur after some initial move
+    /// has been played on the board.
+    fn perft_count_nodes(
         board: &mut Chessboard,
         depth: u8,
         depth_max: u8,
         results: &mut HashMap<u8, PerftResult>,
+        leaf_counter: &mut std::cell::RefMut<usize>,
     ) {
         // maximum depth reached
         if depth > depth_max {
@@ -1239,18 +1307,22 @@ mod perft {
         }
 
         let all_legal_moves = board.find_all_legal_moves();
-
         for uci_move in &all_legal_moves {
             let game_result = board.execute_move(uci_move).unwrap();
 
             let result = results.entry(depth).or_insert(PerftResult::default());
             result.nodes += 1;
 
+            // only count leaf nodes
+            if depth == depth_max {
+                leaf_counter.add_assign(1);
+            }
+
             match game_result {
                 MoveResult::Continues { info } => {
                     perft_update_results(result, info);
                     // game is not over yet, keep playing
-                    perft(board, depth + 1, depth_max, results);
+                    perft_count_nodes(board, depth + 1, depth_max, results, leaf_counter);
                     board.undo_last_move();
                 }
                 MoveResult::Checkmate { winner: _, info } => {
@@ -1300,10 +1372,11 @@ mod perft {
     #[test]
     fn perft_initial_position() {
         let mut board = Chessboard::default();
-        let depth_max = 5;
+        let depth_max = 6;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        // perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
@@ -1331,10 +1404,10 @@ mod perft {
         )
         .unwrap();
 
-        let depth_max = 4;
+        let depth_max = 5;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
@@ -1369,7 +1442,7 @@ mod perft {
         let depth_max = 7;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
@@ -1401,7 +1474,7 @@ mod perft {
         let depth_max = 5;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
@@ -1410,7 +1483,7 @@ mod perft {
             PerftResult::new(264, 0, 87, 0, 6, 48, 10),
             PerftResult::new(9467, 22, 1021, 4, 0, 120, 38),
             PerftResult::new(422_333, 5, 131_393, 0, 7795, 60_032, 15_492),
-            PerftResult::new(15_833_292, 50_562, 204_617, 6512, 0, 329_464, 200_568),
+            PerftResult::new(15_833_292, 50_562, 2_046_173, 6512, 0, 329_464, 200_568),
         ];
 
         for i in 1u8..=depth_max {
@@ -1427,10 +1500,10 @@ mod perft {
             Chessboard::try_from("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
                 .unwrap();
 
-        let depth_max = 3;
+        let depth_max = 5;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
@@ -1454,7 +1527,7 @@ mod perft {
         let depth_max = 5;
         let mut results = HashMap::<u8, PerftResult>::new();
 
-        perft(&mut board, 1, depth_max, &mut results);
+        perft(&mut board, depth_max, &mut results);
         perft_print_results(&results, depth_max);
 
         // order (starting from depth 1)
