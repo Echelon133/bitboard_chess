@@ -1144,3 +1144,326 @@ Fullmove: 14
         assert!(available_moves.contains(&black_castling_move));
     }
 }
+
+#[cfg(test)]
+mod perft {
+    use crate::chessboard::*;
+    use std::collections::HashMap;
+
+    /// Used for storing results of running perft on a certain depth.
+    #[derive(Debug, PartialEq, Copy, Clone)]
+    struct PerftResult {
+        pub nodes: u64,
+        pub checkmates: u64,
+        pub captures: u64,
+        pub enpassants: u64,
+        pub castles: u64,
+        pub promotions: u64,
+        pub checks: u64,
+    }
+
+    impl PerftResult {
+        fn new(
+            nodes: u64,
+            checkmates: u64,
+            captures: u64,
+            enpassants: u64,
+            castles: u64,
+            promotions: u64,
+            checks: u64,
+        ) -> Self {
+            Self {
+                nodes,
+                checkmates,
+                captures,
+                enpassants,
+                castles,
+                promotions,
+                checks,
+            }
+        }
+    }
+
+    impl Default for PerftResult {
+        fn default() -> Self {
+            Self {
+                nodes: 0,
+                checkmates: 0,
+                captures: 0,
+                enpassants: 0,
+                castles: 0,
+                promotions: 0,
+                checks: 0,
+            }
+        }
+    }
+
+    /// Updates `PerftResult` counters based on information received from the `MoveInfo`.
+    #[inline(always)]
+    fn perft_update_results(result: &mut PerftResult, info: MoveInfo) {
+        if info.captured_piece {
+            result.captures += 1;
+        }
+
+        if info.took_enpassant {
+            result.enpassants += 1;
+        }
+
+        if info.castled {
+            result.castles += 1;
+        }
+
+        if info.promoted {
+            result.promotions += 1;
+        }
+
+        if info.checked_opponent {
+            result.checks += 1;
+        }
+    }
+
+    /// Enumerates all possible legal paths from a certain position up to `depth_max`. Apart
+    /// from enumeration, it collects info about things like captures, en passants, promotions,
+    /// checkmates, etc.
+    ///
+    /// See: https://www.chessprogramming.org/Perft
+    fn perft(
+        board: &mut Chessboard,
+        depth: u8,
+        depth_max: u8,
+        results: &mut HashMap<u8, PerftResult>,
+    ) {
+        // maximum depth reached
+        if depth > depth_max {
+            return;
+        }
+
+        let all_legal_moves = board.find_all_legal_moves();
+
+        for uci_move in &all_legal_moves {
+            let game_result = board.execute_move(uci_move).unwrap();
+
+            let result = results.entry(depth).or_insert(PerftResult::default());
+            result.nodes += 1;
+
+            match game_result {
+                MoveResult::Continues { info } => {
+                    perft_update_results(result, info);
+                    // game is not over yet, keep playing
+                    perft(board, depth + 1, depth_max, results);
+                    board.undo_last_move();
+                }
+                MoveResult::Checkmate { winner: _, info } => {
+                    perft_update_results(result, info);
+                    result.checkmates += 1;
+                    // checkmate on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+                MoveResult::Draw { stalemate: _, info } => {
+                    perft_update_results(result, info);
+                    // draw on the board, undo the move and keep searching on the
+                    // same depth
+                    board.undo_last_move();
+                    continue;
+                }
+            }
+        }
+    }
+
+    /// Helper function for printing results of perft.
+    fn perft_print_results(results: &HashMap<u8, PerftResult>, depth_max: u8) {
+        println!("============PERFT RESULTS============");
+        println!(
+            "{:>2}|{:>12}|{:>12}|{:>10}|{:>8}|{:>8}|{:>11}|{:>8}",
+            "D", "Nodes", "Checkmates", "Captures", "E.p", "Castles", "Promotions", "Checks",
+        );
+        for dpth in 1u8..=depth_max {
+            let result = &results[&dpth];
+
+            println!(
+                "{:>2}|{:>12}|{:>12}|{:>10}|{:>8}|{:>8}|{:>11}|{:>8}",
+                dpth,
+                result.nodes,
+                result.checkmates,
+                result.captures,
+                result.enpassants,
+                result.castles,
+                result.promotions,
+                result.checks,
+            );
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Initial_Position
+    #[test]
+    fn perft_initial_position() {
+        let mut board = Chessboard::default();
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(20, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(400, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(8902, 0, 34, 0, 0, 0, 12),
+            PerftResult::new(197_281, 8, 1576, 0, 0, 0, 469),
+            PerftResult::new(4_865_609, 347, 82_719, 258, 0, 0, 27_351),
+            PerftResult::new(119_060_324, 10_828, 2_812_008, 5248, 0, 0, 809_099),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_2
+    #[test]
+    fn perft_second_position() {
+        let mut board = Chessboard::try_from(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        )
+        .unwrap();
+
+        let depth_max = 4;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(48, 0, 8, 0, 2, 0, 0),
+            PerftResult::new(2039, 0, 351, 1, 91, 0, 3),
+            PerftResult::new(97_862, 1, 17_102, 45, 3162, 0, 993),
+            PerftResult::new(4_085_603, 43, 757_163, 1929, 128_013, 15_172, 25_523),
+            PerftResult::new(
+                193_690_690,
+                30_171,
+                35_043_416,
+                73_365,
+                4_993_637,
+                8392,
+                3_309_887,
+            ),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_3
+    #[test]
+    fn perft_third_position() {
+        let mut board = Chessboard::try_from("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+
+        let depth_max = 7;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(14, 0, 1, 0, 0, 0, 2),
+            PerftResult::new(191, 0, 14, 0, 0, 0, 10),
+            PerftResult::new(2812, 0, 209, 2, 0, 0, 267),
+            PerftResult::new(43_238, 17, 3348, 123, 0, 0, 1680),
+            PerftResult::new(674_624, 0, 52_051, 1165, 0, 0, 52_950),
+            PerftResult::new(11_030_083, 2733, 940_350, 33_325, 0, 7552, 452_473),
+            PerftResult::new(178_633_661, 87, 14_519_036, 294_874, 0, 140_024, 12_797_406),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_4
+    #[test]
+    fn perft_fourth_position() {
+        let mut board = Chessboard::try_from(
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        )
+        .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [
+            PerftResult::new(6, 0, 0, 0, 0, 0, 0),
+            PerftResult::new(264, 0, 87, 0, 6, 48, 10),
+            PerftResult::new(9467, 22, 1021, 4, 0, 120, 38),
+            PerftResult::new(422_333, 5, 131_393, 0, 7795, 60_032, 15_492),
+            PerftResult::new(15_833_292, 50_562, 204_617, 6512, 0, 329_464, 200_568),
+        ];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], *result)
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_5
+    #[test]
+    fn perft_fifth_position() {
+        let mut board =
+            Chessboard::try_from("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8")
+                .unwrap();
+
+        let depth_max = 3;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [44, 1486, 62_379, 2_103_487, 89_941_194];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], result.nodes);
+        }
+    }
+
+    // See: https://www.chessprogramming.org/Perft_Results#Position_6
+    #[test]
+    fn perft_sixth_position() {
+        let mut board = Chessboard::try_from(
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+        )
+        .unwrap();
+
+        let depth_max = 5;
+        let mut results = HashMap::<u8, PerftResult>::new();
+
+        perft(&mut board, 1, depth_max, &mut results);
+        perft_print_results(&results, depth_max);
+
+        // order (starting from depth 1)
+        let expected_results = [46, 2079, 89_890, 3_894_594, 164_075_551];
+
+        for i in 1u8..=depth_max {
+            let result = &results[&i];
+            let i = (i - 1) as usize;
+            assert_eq!(expected_results[i], result.nodes);
+        }
+    }
+}
