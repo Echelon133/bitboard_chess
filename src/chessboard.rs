@@ -875,11 +875,11 @@ impl Chessboard {
         movegen::is_king_in_check(king_color, &self.inner_board)
     }
 
-    /// Finds all pseudo-legal moves for all pieces of the given color.
-    fn find_all_pseudolegal_moves(&self, color: piece::Color) -> Vec<moves::UCIMove> {
-        let mut all_moves = Vec::new();
-
-        let own_pieces = self.inner_board.get_squares_taken(color);
+    /// Finds all legal moves which can be executed by the current player.
+    pub fn find_all_legal_moves(&mut self) -> Vec<moves::UCIMove> {
+        let mut moves = Vec::new();
+        let color_to_play = self.context.get_color_to_play();
+        let own_pieces = self.inner_board.get_squares_taken(color_to_play);
         let (white, black) = self.inner_board.get_squares_taken_pair();
 
         for occupied_square in own_pieces.iter() {
@@ -888,34 +888,37 @@ impl Chessboard {
                 .get_piece(occupied_square)
                 .unwrap()
                 .get_kind();
-            let mut moves = match piece_kind {
-                piece::Kind::Pawn => {
-                    movegen::find_pawn_moves(occupied_square, color, white, black, &self.context)
-                }
+            let mut found_moves = match piece_kind {
+                piece::Kind::Pawn => movegen::find_pawn_moves(
+                    occupied_square,
+                    color_to_play,
+                    white,
+                    black,
+                    &self.context,
+                ),
                 piece::Kind::Bishop => {
-                    movegen::find_bishop_moves(occupied_square, color, white, black)
+                    movegen::find_bishop_moves(occupied_square, color_to_play, white, black)
                 }
-                piece::Kind::Rook => movegen::find_rook_moves(occupied_square, color, white, black),
+                piece::Kind::Rook => {
+                    movegen::find_rook_moves(occupied_square, color_to_play, white, black)
+                }
                 piece::Kind::Knight => {
-                    movegen::find_knight_moves(occupied_square, color, white, black)
+                    movegen::find_knight_moves(occupied_square, color_to_play, white, black)
                 }
                 piece::Kind::Queen => {
-                    movegen::find_queen_moves(occupied_square, color, white, black)
+                    movegen::find_queen_moves(occupied_square, color_to_play, white, black)
                 }
-                piece::Kind::King => {
-                    movegen::find_king_moves(occupied_square, color, white, black, &self.context)
-                }
+                piece::Kind::King => movegen::find_king_moves(
+                    occupied_square,
+                    color_to_play,
+                    white,
+                    black,
+                    &self.context,
+                ),
             };
-
-            all_moves.append(&mut moves);
+            moves.append(&mut found_moves);
         }
-        all_moves
-    }
 
-    /// Finds all legal moves which can be executed by the current player.
-    pub fn find_all_legal_moves(&mut self) -> Vec<moves::UCIMove> {
-        let color_to_play = self.context.get_color_to_play();
-        let mut moves = self.find_all_pseudolegal_moves(color_to_play);
         moves.retain(|mv| self.is_move_legal(&mv));
         moves
     }
