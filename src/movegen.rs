@@ -6,6 +6,95 @@ use crate::moves;
 use crate::piece;
 use crate::square;
 
+/// Iterator over pseudo-legal moves of pieces.
+///
+/// If `promoting` is set to true, each pair of (start_square, target_square) is
+/// generated four times, for each possible kind of piece that can be a promotion goal.
+/// If `promoting` is set to false, each pair of (start_square, target_square) is
+/// generated only once.
+#[derive(Debug)]
+pub struct MoveIter {
+    start_square: square::Square,
+    targets: bitboard::Bitboard,
+    promoting: bool,
+    kind_index: usize,
+}
+
+impl MoveIter {
+    pub fn new(start_square: square::Square, targets: bitboard::Bitboard, promoting: bool) -> Self {
+        Self {
+            start_square,
+            targets,
+            promoting,
+            kind_index: 0,
+        }
+    }
+}
+
+impl Iterator for MoveIter {
+    type Item = moves::UCIMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let count = self.targets.count_set();
+
+        if count == 0 {
+            None
+        } else {
+            match self.promoting {
+                // moves are not promoting, so only spit out `UCIMove::Regular` and
+                // then move on to the next possible move
+                false => {
+                    // find first bit set to 1
+                    let first_set = self.targets.bitscan_forward();
+                    let target_square = square::Square::from(first_set);
+                    // clear the bit
+                    self.targets.clear(target_square);
+                    let mv = moves::Move::new(self.start_square, target_square);
+                    Some(moves::UCIMove::Regular { m: mv })
+                }
+                // moves are promoting, so only spit out `UCIMove::Promotion`, and each
+                // move should be generated four times, for each kind of piece that can
+                // appear on the board when promoting a pawn
+                true => {
+                    let promotion_kinds = [
+                        piece::Kind::Knight,
+                        piece::Kind::Bishop,
+                        piece::Kind::Queen,
+                        piece::Kind::Rook,
+                    ];
+
+                    // find first bit set to 1
+                    let mut first_set = self.targets.bitscan_forward();
+                    let mut target_square = square::Square::from(first_set);
+
+                    // if kind_index is 4, it means that the previous promotion_target was
+                    // exhausted and it's time to move to the next promotion_target
+                    if self.kind_index == 4 {
+                        self.targets.clear(target_square);
+                        // it all promotion moves got generated for the last target square
+                        // and there is no more targets, quit early with `None`
+                        if self.targets.count_set() == 0 {
+                            return None;
+                        }
+
+                        first_set = self.targets.bitscan_forward();
+                        target_square = square::Square::from(first_set);
+                        self.kind_index = 0;
+                    }
+
+                    let mv = moves::Move::new(self.start_square, target_square);
+                    let result = moves::UCIMove::Promotion {
+                        m: mv,
+                        k: promotion_kinds[self.kind_index],
+                    };
+                    self.kind_index += 1;
+                    Some(result)
+                }
+            }
+        }
+    }
+}
+
 /// Finds all pseudo-legal moves for the pawn on the given square.
 /// This function assumes that a piece that is placed on the given
 /// square is actually a pawn. It does not check whether that is true,
@@ -2485,6 +2574,65 @@ mod tests {
         for fen in fens {
             let board = board::Board::try_from(fen).unwrap();
             assert!(!is_king_in_check(black, &board));
+        }
+    }
+
+    #[test]
+    fn moveiter_iterates_over_empty() {
+        let start_square = square::Square::try_from("d7").unwrap();
+        let targets = bitboard::Bitboard::default();
+
+        let mut iter1 = MoveIter::new(start_square, targets, false);
+        let mut iter2 = MoveIter::new(start_square, targets, true);
+        assert_eq!(iter1.next(), None);
+        assert_eq!(iter2.next(), None);
+    }
+
+    #[test]
+    fn moveiter_iterates_over_nonpromoting_squares() {
+        let start_square = square::Square::try_from("e2").unwrap();
+        let mut targets = bitboard::Bitboard::default();
+
+        targets.set(square::Square::try_from("e3").unwrap());
+        targets.set(square::Square::try_from("e4").unwrap());
+
+        let iter = MoveIter::new(start_square, targets, false);
+
+        let all_found_moves = iter.collect::<Vec<moves::UCIMove>>();
+        let expected_moves: Vec<moves::UCIMove> = ["e2e3", "e2e4"]
+            .iter_mut()
+            .map(|mv| moves::UCIMove::try_from(*mv).unwrap())
+            .collect();
+
+        assert_eq!(expected_moves.len(), all_found_moves.len());
+
+        for expected_move in expected_moves {
+            assert!(all_found_moves.contains(&expected_move));
+        }
+    }
+
+    #[test]
+    fn moveiter_iterates_over_promoting_squares() {
+        let start_square = square::Square::try_from("d7").unwrap();
+        let mut targets = bitboard::Bitboard::default();
+
+        targets.set(square::Square::try_from("c8").unwrap());
+        targets.set(square::Square::try_from("d8").unwrap());
+
+        let iter = MoveIter::new(start_square, targets, true);
+
+        let all_found_moves = iter.collect::<Vec<moves::UCIMove>>();
+        let expected_moves: Vec<moves::UCIMove> = [
+            "d7c8n", "d7c8b", "d7c8q", "d7c8r", "d7d8n", "d7d8b", "d7d8q", "d7d8r",
+        ]
+        .iter_mut()
+        .map(|mv| moves::UCIMove::try_from(*mv).unwrap())
+        .collect();
+
+        assert_eq!(expected_moves.len(), all_found_moves.len());
+
+        for expected_move in expected_moves {
+            assert!(all_found_moves.contains(&expected_move));
         }
     }
 }
