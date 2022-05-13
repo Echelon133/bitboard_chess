@@ -162,7 +162,6 @@ impl Debug for Bitboard {
 ///
 pub struct SquareIter {
     bits: u64,
-    shift: u8,
     size: u8,
 }
 
@@ -171,7 +170,6 @@ impl SquareIter {
     pub fn new(bboard: &Bitboard) -> Self {
         Self {
             bits: bboard.get_bits(),
-            shift: 0,
             size: bboard.count_set(),
         }
     }
@@ -191,18 +189,13 @@ impl Iterator for SquareIter {
         if self.size == 0 {
             None
         } else {
-            loop {
-                // find the next set bit
-                let is_set = ((self.bits >> self.shift) & 0b1) == 1;
-                if is_set {
-                    let square = square::Square::from(self.shift);
-                    self.shift += 1;
-                    self.size -= 1;
-                    break Some(square);
-                } else {
-                    self.shift += 1;
-                }
-            }
+            // find the next set bit
+            let first_set = u64::trailing_zeros(self.bits) as u8;
+            // clear the bit after it's been found
+            self.bits &= !(0b1 << first_set);
+            self.size -= 1;
+            let square = square::Square::from(first_set);
+            Some(square)
         }
     }
 }
