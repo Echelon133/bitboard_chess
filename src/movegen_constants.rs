@@ -1,3 +1,173 @@
+/// Precalculated attack patterns for white pawns (for each one of 64 squares).
+/// Each square has a 64 bit number in which set bits represent which
+/// squares are attacked by a pawn from that square.
+///
+/// # Example
+/// The attack pattern for a pawn on the b2 square (index 9) is represented by 
+/// 0x5_00_00, which (displayed as a bitboard) looks like this:
+/// ```
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 10100000 // 0x05
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// ```
+///
+pub static WHITE_PAWN_ATTACK_PATTERNS: [u64; 64] = [
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x20000,
+    0x50000,
+    0xa0000,
+    0x140000,
+    0x280000,
+    0x500000,
+    0xa00000,
+    0x400000,
+    0x2000000,
+    0x5000000,
+    0xa000000,
+    0x14000000,
+    0x28000000,
+    0x50000000,
+    0xa0000000,
+    0x40000000,
+    0x200000000,
+    0x500000000,
+    0xa00000000,
+    0x1400000000,
+    0x2800000000,
+    0x5000000000,
+    0xa000000000,
+    0x4000000000,
+    0x20000000000,
+    0x50000000000,
+    0xa0000000000,
+    0x140000000000,
+    0x280000000000,
+    0x500000000000,
+    0xa00000000000,
+    0x400000000000,
+    0x2000000000000,
+    0x5000000000000,
+    0xa000000000000,
+    0x14000000000000,
+    0x28000000000000,
+    0x50000000000000,
+    0xa0000000000000,
+    0x40000000000000,
+    0x200000000000000,
+    0x500000000000000,
+    0xa00000000000000,
+    0x1400000000000000,
+    0x2800000000000000,
+    0x5000000000000000,
+    0xa000000000000000,
+    0x4000000000000000,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+];
+
+/// Precalculated attack patterns for black pawns (for each one of 64 squares).
+/// Each square has a 64 bit number in which set bits represent which
+/// squares are attacked by a pawn from that square.
+///
+/// # Example
+/// The attack pattern for a pawn on the b7 square (index 49) is represented by
+/// 0x5_00_00_00_00_00, which (displayed as a bitboard) looks like this:
+/// ```
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 10100000 // 0x05
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// 00000000 // 0x00
+/// ```
+///
+pub static BLACK_PAWN_ATTACK_PATTERNS: [u64; 64] = [
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x2,
+    0x5,
+    0xa,
+    0x14,
+    0x28,
+    0x50,
+    0xa0,
+    0x40,
+    0x200,
+    0x500,
+    0xa00,
+    0x1400,
+    0x2800,
+    0x5000,
+    0xa000,
+    0x4000,
+    0x20000,
+    0x50000,
+    0xa0000,
+    0x140000,
+    0x280000,
+    0x500000,
+    0xa00000,
+    0x400000,
+    0x2000000,
+    0x5000000,
+    0xa000000,
+    0x14000000,
+    0x28000000,
+    0x50000000,
+    0xa0000000,
+    0x40000000,
+    0x200000000,
+    0x500000000,
+    0xa00000000,
+    0x1400000000,
+    0x2800000000,
+    0x5000000000,
+    0xa000000000,
+    0x4000000000,
+    0x20000000000,
+    0x50000000000,
+    0xa0000000000,
+    0x140000000000,
+    0x280000000000,
+    0x500000000000,
+    0xa00000000000,
+    0x400000000000,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+    0x0,
+];
+
 /// Precalculated attack patterns for knights (for each one of 64 squares).
 /// Each square has a 64 bit number in which set bits represent which
 /// squares are attacked by a knight from that square.
