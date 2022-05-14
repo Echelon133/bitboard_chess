@@ -118,44 +118,6 @@ impl Iterator for MoveIter {
 /// square is actually a pawn. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
 ///
-/// Since [`square::Square`] holds the index of the square on the board
-/// (growing left-to-right, bottom-to-top), it's possible to calculate indexes
-/// of squares relative to the square where our pawn is:
-/// - one rank above has *index = (index + 8)*
-/// - one rank below has *index = (index - 8)*
-/// - two ranks above *index = (index + 16)*
-/// - two ranks below *index = (index - 16)*
-///
-/// To calculate captures, offsets (+- 7,9) can be used to find squares that are on diagonals
-/// of the pawn square.
-///
-/// For white:
-/// ```
-/// -  - -  - - - - -
-/// - +7 - +9 - - - -
-/// -  - P  - - - - -
-/// ```
-///
-/// For black:
-/// ```
-/// -  - -  - - - - -
-/// -  - p  - - - - -
-/// - -9 - -7 - - - -
-/// ```
-///
-/// If the pawn is on the A or H file, it can only attack one side. Calculating offsets
-/// for pawns on these files does not work exactly as for pawns on other files, because
-/// the index of one attacked square wraps arround and ends
-/// up on an incorrect square that's (depending on the file and color of the pawn):
-/// - on the same rank as the pawn, but on the other side of the board
-/// - rank below/above the actually attacked rank, and still on the other side of the board
-///
-/// To only take squares on the attacked rank into account (and eliminate squares that
-/// got set incorrectly due to the index wrap-around) there should be a bitwise AND operation
-/// on the bits of a bitboard that contains the attacked squares, and the bits of a bitboard that
-/// has all squares on the attacked rank lit. This way all squares that are not
-/// on the attacked rank are eliminated.
-///
 /// # More info
 /// [How to calculate pawn pushes](https://www.chessprogramming.org/Pawn_Pushes_(Bitboards))
 ///
@@ -172,147 +134,43 @@ pub fn find_pawn_moves(
 
     let all_taken = *white_taken | *black_taken;
 
-    let mut can_move_once = false;
+    let pawn_index = piece_square.get_index();
     let pawn_rank = piece_square.get_rank();
-    let square_index = piece_square.get_index() as i8;
 
-    // only non-capturing moves
-    // shift_one - bitboard where all pieces got shifted a rank towards the pawn
-    // shift_two - bitboard where all pieces got shifted two ranks towards the pawn
-    // square_dist - how many indexes away the square above (for white) and below (for black) is
-    // start_rank - rank on which the pawn starts and can potentially move two squares at once
-    // promotion_rank - rank on which the pawn can promote on its next move
-    let (shift_one, shift_two, square_dist, start_rank, promotion_rank) = match color {
-        piece::Color::White => (
-            all_taken >> 8,
-            all_taken >> 16,
-            8i8,
-            square::Rank::R2,
-            square::Rank::R7,
-        ),
-        piece::Color::Black => (
-            all_taken << 8,
-            all_taken << 16,
-            -8i8,
-            square::Rank::R7,
-            square::Rank::R2,
-        ),
-    };
-
-    if !shift_one.is_set(piece_square) {
-        can_move_once = true;
-        // square that's one rank above (for white) or one rank below (for black)
-        let square1 = square::Square::from((square_index + square_dist) as u8);
-        let mv = moves::Move::new(piece_square, square1);
-        if pawn_rank == promotion_rank {
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Knight,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Bishop,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Queen,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Rook,
-            });
-        } else {
-            moves.push(moves::UCIMove::Regular { m: mv });
-        }
-    }
-
-    if can_move_once && (pawn_rank == start_rank) && !shift_two.is_set(piece_square) {
-        // square that's two ranks above (for white) and two ranks below (for black)
-        let square2 = square::Square::from((square_index + (2 * square_dist)) as u8);
-        let mv = moves::Move::new(piece_square, square2);
-        moves.push(moves::UCIMove::Regular { m: mv });
-    }
-
-    // only capturing moves
-    // left_square - attacked square to the left of the pawn (from the pawn's perspective)
-    // right_square - attacked square to the right of the pawn (from the pawn's perspective)
-    // attacked_rank_index - how many times a 0b11111111 mask has to be shifted
-    //      left by 8 to completely cover the bits of the rank attacked by the pawn
-    // opponent_taken - bitboard that represents squares taken by the opposite color
-    // promotion_rank - rank on which the pawn is placed before it can promote in it's next move
-    let (left_square, right_square, attacked_rank_index, opponent_taken, promotion_rank) =
+    let (enemy_pieces, push_direction, attack_pattern, start_rank, promotion_rank) =
         match color {
-            piece::Color::White => {
-                let left = square::Square::from(square_index as u8 + 7);
-                let right = square::Square::from(square_index as u8 + 9);
-                let attacked_rank_index = pawn_rank.index() + 1;
-                (
-                    left,
-                    right,
-                    attacked_rank_index,
-                    black_taken,
-                    square::Rank::R7,
-                )
-            }
-            piece::Color::Black => {
-                let left = square::Square::from(square_index as u8 - 9);
-                let right = square::Square::from(square_index as u8 - 7);
-                let attacked_rank_index = pawn_rank.index() - 1;
-                (
-                    left,
-                    right,
-                    attacked_rank_index,
-                    white_taken,
-                    square::Rank::R2,
-                )
-            }
+            piece::Color::White => (
+                black_taken,
+                1i8,
+                bitboard::Bitboard::from(WHITE_PAWN_ATTACK_PATTERNS[pawn_index]),
+                square::Rank::R2,
+                square::Rank::R7,
+            ),
+            piece::Color::Black => (
+                white_taken,
+                -1i8,
+                bitboard::Bitboard::from(BLACK_PAWN_ATTACK_PATTERNS[pawn_index]),
+                square::Rank::R7,
+                square::Rank::R2,
+            ),
         };
 
-    let mut attack_bitboard = bitboard::Bitboard::default();
-    attack_bitboard.set(left_square);
-    attack_bitboard.set(right_square);
-
-    let mask = 0b11111111u64 << (8 * attacked_rank_index);
-    let attacked_rank_mask = bitboard::Bitboard::from(mask);
-
-    // in case the pawn was on A or H file, remove squares that got incorrectly
-    // set because of the wrap-around (more info in this function's docs)
-    let attack_bitboard = attack_bitboard & attacked_rank_mask;
-
-    // check en-passant here, because the next bitwise AND only leaves squares that
-    // are directly attacked (i.e. only squares on which enemy pieces remain,
-    // which is not the case when it comes to en passant, because the piece is not
-    // attacked directly)
-    if let Some(enpassant_target) = context.get_enpassant() {
-        // white enpassant_target is on the 3rd rank, whereas
-        // black enpassant_target is on the 6th rank
-        //
-        // any other value means that somehow enpassant_target got incorrectly set
-        // in the board context, which means that some invariant got broken and the board
-        // might be in an invalid state
-        let capture_rank = match enpassant_target.get_rank() {
-            square::Rank::R3 => square::Rank::R4,
-            square::Rank::R6 => square::Rank::R5,
-            _ => panic!("invalid enpassant target"),
-        };
-        // enpassant is only possible if both conditions below are true:
-        // - the square from which the pawn would be captured en passant is actually taken
-        //      by the opponent piece, otherwise there is nothing to capture
-        // - the pawn attacks the enpassant_target square, which means that it's in position
-        //      to take advantage of the en passant rule
-        let pawn_capture_sq = square::Square::new(capture_rank, enpassant_target.get_file());
-        if opponent_taken.is_set(pawn_capture_sq) && attack_bitboard.is_set(enpassant_target) {
-            let mv = moves::Move::new(piece_square, enpassant_target);
-            moves.push(moves::UCIMove::Regular { m: mv });
-        }
-    }
-
-    let actually_attacked_squares = attack_bitboard & *opponent_taken;
-
-    // moves that not only can capture, but also promote at the same time
     if pawn_rank == promotion_rank {
-        for attacked_square in actually_attacked_squares.iter() {
-            let mv = moves::Move::new(piece_square, attacked_square);
+        let mut target_squares = bitboard::Bitboard::default();
+        // calculate single push forward (guaranteed to be within the board)
+        let sq_index = (pawn_index as i8) + (push_direction * 8);
+        let target_sq = square::Square::from(sq_index as u8);
+        // if the square is empty, pawn can promote on it
+        if !all_taken.is_set(target_sq) {
+            target_squares.set(target_sq);
+        }
+
+        // calculate attacks
+        let attack_squares = attack_pattern & *enemy_pieces;
+        let target_squares = target_squares | attack_squares;
+
+        for targeted_square in target_squares.iter() {
+            let mv = moves::Move::new(piece_square, targeted_square);
             moves.push(moves::UCIMove::Promotion {
                 m: mv,
                 k: piece::Kind::Knight,
@@ -331,8 +189,55 @@ pub fn find_pawn_moves(
             });
         }
     } else {
-        for attacked_square in actually_attacked_squares.iter() {
-            let mv = moves::Move::new(piece_square, attacked_square);
+        let mut target_squares = bitboard::Bitboard::default();
+        // calculate single push forward (guaranteed to be within the board)
+        let push_one_i = (pawn_index as i8) + (push_direction * 8);
+        let push_one_sq = square::Square::from(push_one_i as u8);
+
+        // if the square is empty, pawn can be pushed there
+        if !all_taken.is_set(push_one_sq) {
+            target_squares.set(push_one_sq);
+
+            // if pawn is on its initial square, check if it can be pushed twice
+            if pawn_rank == start_rank {
+                let push_two_i = (pawn_index as i8) + (push_direction * 16);
+                let push_two_sq = square::Square::from(push_two_i as u8);
+                if !all_taken.is_set(push_two_sq) {
+                    target_squares.set(push_two_sq);
+                }
+            }
+        }
+
+        // calculate attacks
+        let attack_squares = attack_pattern & *enemy_pieces;
+        let mut target_squares = target_squares | attack_squares;
+
+        // calculate en passant
+        if let Some(enpassant_target) = context.get_enpassant() {
+            // white enpassant_target is on the 3rd rank, whereas
+            // black enpassant_target is on the 6th rank
+            //
+            // any other value means that somehow enpassant_target got incorrectly set
+            // in the board context, which means that some invariant got broken and the board
+            // might be in an invalid state
+            let capture_rank = match enpassant_target.get_rank() {
+                square::Rank::R3 => square::Rank::R4,
+                square::Rank::R6 => square::Rank::R5,
+                _ => panic!("invalid enpassant target"),
+            };
+            // enpassant is only possible if both conditions below are true:
+            // - the square from which the pawn would be captured en passant is actually taken
+            //      by the opponent piece, otherwise there is nothing to capture
+            // - the pawn attacks the enpassant_target square, which means that it's in position
+            //      to take advantage of the en passant rule
+            let enpassant_sq = square::Square::new(capture_rank, enpassant_target.get_file());
+            if enemy_pieces.is_set(enpassant_sq) && attack_pattern.is_set(enpassant_target) {
+                target_squares.set(enpassant_target);
+            }
+        }
+
+        for targeted_square in target_squares.iter() {
+            let mv = moves::Move::new(piece_square, targeted_square);
             moves.push(moves::UCIMove::Regular { m: mv });
         }
     }
