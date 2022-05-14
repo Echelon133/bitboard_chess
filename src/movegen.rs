@@ -34,6 +34,24 @@ impl MoveIter {
 impl Iterator for MoveIter {
     type Item = moves::UCIMove;
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count_targets = self.targets.count_set() as usize;
+        let exact_remaining = match self.promoting {
+            true => {
+                // for every promotion target, give out 4 elements
+                let upper_bound_remaining = count_targets * 4;
+                // remove those variants of moves that have already been given out
+                let exact_remaining = upper_bound_remaining - self.kind_index;
+                exact_remaining
+            },
+            false => {
+                // nonpromoting iter returns exactly 1 element for each bit set
+                count_targets
+            }
+        };
+        (exact_remaining, None)
+    }
+
     fn next(&mut self) -> Option<Self::Item> {
         let count = self.targets.count_set();
 
@@ -2634,5 +2652,51 @@ mod tests {
         for expected_move in expected_moves {
             assert!(all_found_moves.contains(&expected_move));
         }
+    }
+
+    #[test]
+    fn moveiter_nonpromoting_size_hint_returns_exact_remaining_length() {
+        let start_square = square::Square::try_from("e2").unwrap();
+        let mut targets = bitboard::Bitboard::default();
+
+        targets.set(square::Square::try_from("e3").unwrap());
+        targets.set(square::Square::try_from("e4").unwrap());
+        targets.set(square::Square::try_from("e5").unwrap());
+
+        let mut iter = MoveIter::new(start_square, targets, false);
+        let (mut sum_all_sizes, _) = iter.size_hint();
+
+        // sum of infinite series up to 3, all size_hint results added together
+        // should amount to this number
+        let expected_sum = 6;
+
+        while let Some(_) = iter.next() {
+            let (size, _) = iter.size_hint();
+            sum_all_sizes += size;
+        }
+        assert_eq!(expected_sum, sum_all_sizes);
+    }
+
+    #[test]
+    fn moveiter_promoting_size_hint_returns_exact_remaining_length() {
+        let start_square = square::Square::try_from("d7").unwrap();
+        let mut targets = bitboard::Bitboard::default();
+
+        targets.set(square::Square::try_from("c8").unwrap());
+        targets.set(square::Square::try_from("d8").unwrap());
+        targets.set(square::Square::try_from("e8").unwrap());
+
+        let mut iter = MoveIter::new(start_square, targets, true);
+        let (mut sum_all_sizes, _) = iter.size_hint();
+
+        // sum of infinite series up to 12, all size_hint results added together
+        // should amount to this number
+        let expected_sum = 78;
+
+        while let Some(_) = iter.next() {
+            let (size, _) = iter.size_hint();
+            sum_all_sizes += size;
+        }
+        assert_eq!(expected_sum, sum_all_sizes);
     }
 }
