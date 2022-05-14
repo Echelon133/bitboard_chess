@@ -43,7 +43,7 @@ impl Iterator for MoveIter {
                 // remove those variants of moves that have already been given out
                 let exact_remaining = upper_bound_remaining - self.kind_index;
                 exact_remaining
-            },
+            }
             false => {
                 // nonpromoting iter returns exactly 1 element for each bit set
                 count_targets
@@ -130,30 +130,27 @@ pub fn find_pawn_moves(
     black_taken: &bitboard::Bitboard,
     context: &context::Context,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-
     let all_taken = *white_taken | *black_taken;
 
     let pawn_index = piece_square.get_index();
     let pawn_rank = piece_square.get_rank();
 
-    let (enemy_pieces, push_direction, attack_pattern, start_rank, promotion_rank) =
-        match color {
-            piece::Color::White => (
-                black_taken,
-                1i8,
-                bitboard::Bitboard::from(WHITE_PAWN_ATTACK_PATTERNS[pawn_index]),
-                square::Rank::R2,
-                square::Rank::R7,
-            ),
-            piece::Color::Black => (
-                white_taken,
-                -1i8,
-                bitboard::Bitboard::from(BLACK_PAWN_ATTACK_PATTERNS[pawn_index]),
-                square::Rank::R7,
-                square::Rank::R2,
-            ),
-        };
+    let (enemy_pieces, push_direction, attack_pattern, start_rank, promotion_rank) = match color {
+        piece::Color::White => (
+            black_taken,
+            1i8,
+            bitboard::Bitboard::from(WHITE_PAWN_ATTACK_PATTERNS[pawn_index]),
+            square::Rank::R2,
+            square::Rank::R7,
+        ),
+        piece::Color::Black => (
+            white_taken,
+            -1i8,
+            bitboard::Bitboard::from(BLACK_PAWN_ATTACK_PATTERNS[pawn_index]),
+            square::Rank::R7,
+            square::Rank::R2,
+        ),
+    };
 
     if pawn_rank == promotion_rank {
         let mut target_squares = bitboard::Bitboard::default();
@@ -169,25 +166,8 @@ pub fn find_pawn_moves(
         let attack_squares = attack_pattern & *enemy_pieces;
         let target_squares = target_squares | attack_squares;
 
-        for targeted_square in target_squares.iter() {
-            let mv = moves::Move::new(piece_square, targeted_square);
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Knight,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Bishop,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Queen,
-            });
-            moves.push(moves::UCIMove::Promotion {
-                m: mv,
-                k: piece::Kind::Rook,
-            });
-        }
+        let iter = MoveIter::new(piece_square, target_squares, true);
+        iter.collect::<Vec<moves::UCIMove>>()
     } else {
         let mut target_squares = bitboard::Bitboard::default();
         // calculate single push forward (guaranteed to be within the board)
@@ -236,13 +216,9 @@ pub fn find_pawn_moves(
             }
         }
 
-        for targeted_square in target_squares.iter() {
-            let mv = moves::Move::new(piece_square, targeted_square);
-            moves.push(moves::UCIMove::Regular { m: mv });
-        }
+        let iter = MoveIter::new(piece_square, target_squares, false);
+        iter.collect::<Vec<moves::UCIMove>>()
     }
-
-    moves
 }
 
 /// Finds all pseudo-legal moves for the knight on the given square.
@@ -270,8 +246,6 @@ pub fn find_knight_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-
     let own_pieces = match color {
         piece::Color::White => *white_taken,
         piece::Color::Black => *black_taken,
@@ -284,12 +258,8 @@ pub fn find_knight_moves(
     // only attack squares where there are no pieces the same color as the knight
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
-    for attacked_square in attack_bitboard.iter() {
-        let mv = moves::Move::new(piece_square, attacked_square);
-        moves.push(moves::UCIMove::Regular { m: mv });
-    }
-
-    moves
+    let iter = MoveIter::new(piece_square, attack_bitboard, false);
+    iter.collect::<Vec<moves::UCIMove>>()
 }
 
 /// Finds all pseudo-legal moves for the king on the given square.
@@ -312,8 +282,6 @@ pub fn find_king_moves(
     black_taken: &bitboard::Bitboard,
     context: &context::Context,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-
     let own_pieces = match own_color {
         piece::Color::White => *white_taken,
         piece::Color::Black => *black_taken,
@@ -326,12 +294,7 @@ pub fn find_king_moves(
     let index = piece_square.get_index();
     let attack_bitboard = bitboard::Bitboard::from(KING_ATTACK_PATTERNS[index]);
     // only attack squares where there are no pieces with the same color as the king
-    let attack_bitboard = attack_bitboard & (!own_pieces);
-
-    for attacked_square in attack_bitboard.iter() {
-        let mv = moves::Move::new(piece_square, attacked_square);
-        moves.push(moves::UCIMove::Regular { m: mv });
-    }
+    let mut attack_bitboard = attack_bitboard & (!own_pieces);
 
     // if castling is available, then it means that the king
     // is on its original square, therefore g1/g8 and c1/c8 target
@@ -344,8 +307,7 @@ pub fn find_king_moves(
         let g_file_square = square::Square::from((index + 2) as u8);
 
         if !all_taken.is_set(f_file_square) && !all_taken.is_set(g_file_square) {
-            let mv = moves::Move::new(piece_square, g_file_square);
-            moves.push(moves::UCIMove::Regular { m: mv });
+            attack_bitboard.set(g_file_square);
         }
     }
     if context.can_castle(own_color, context::Side::Queenside) {
@@ -359,12 +321,12 @@ pub fn find_king_moves(
             && !all_taken.is_set(c_file_square)
             && !all_taken.is_set(d_file_square)
         {
-            let mv = moves::Move::new(piece_square, c_file_square);
-            moves.push(moves::UCIMove::Regular { m: mv });
+            attack_bitboard.set(c_file_square);
         }
     }
 
-    moves
+    let iter = MoveIter::new(piece_square, attack_bitboard, false);
+    iter.collect::<Vec<moves::UCIMove>>()
 }
 
 /// Generates code that handles the creation of attack bitboards for rays that are positive
@@ -500,8 +462,7 @@ fn find_file_rank_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-    moves: &mut Vec<moves::UCIMove>,
-) {
+) -> bitboard::Bitboard {
     let own_pieces = match color {
         piece::Color::White => white_taken,
         piece::Color::Black => black_taken,
@@ -517,10 +478,7 @@ fn find_file_rank_moves(
 
     // sum all attacked squares from north, south, east and west
     let all_attacks = north_attack | south_attack | east_attack | west_attack;
-    for target_square in all_attacks.iter() {
-        let mv = moves::Move::new(piece_square, target_square);
-        moves.push(moves::UCIMove::Regular { m: mv });
-    }
+    all_attacks
 }
 
 /// Finds all pseudo-legal moves for the rook on the given square.
@@ -534,9 +492,9 @@ pub fn find_rook_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-    find_file_rank_moves(piece_square, color, white_taken, black_taken, &mut moves);
-    moves
+    let attack_bitboard = find_file_rank_moves(piece_square, color, white_taken, black_taken);
+    let iter = MoveIter::new(piece_square, attack_bitboard, false);
+    iter.collect::<Vec<moves::UCIMove>>()
 }
 
 /// Finds all pseudo-legal moves for a sliding piece that moves
@@ -553,8 +511,7 @@ fn find_diagonal_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-    moves: &mut Vec<moves::UCIMove>,
-) {
+) -> bitboard::Bitboard {
     let own_pieces = match color {
         piece::Color::White => white_taken,
         piece::Color::Black => black_taken,
@@ -570,10 +527,7 @@ fn find_diagonal_moves(
 
     // sum all attacked squares from north-east, north-west, south-east and south-west
     let all_attacks = nw_attack | ne_attack | sw_attack | se_attack;
-    for target_square in all_attacks.iter() {
-        let mv = moves::Move::new(piece_square, target_square);
-        moves.push(moves::UCIMove::Regular { m: mv });
-    }
+    all_attacks
 }
 
 /// Finds all pseudo-legal moves for the bishop on the given square.
@@ -587,9 +541,9 @@ pub fn find_bishop_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-    find_diagonal_moves(piece_square, color, white_taken, black_taken, &mut moves);
-    moves
+    let attack_bitboard = find_diagonal_moves(piece_square, color, white_taken, black_taken);
+    let iter = MoveIter::new(piece_square, attack_bitboard, false);
+    iter.collect::<Vec<moves::UCIMove>>()
 }
 
 /// Finds all pseudo-legal moves for the queen on the given square.
@@ -603,10 +557,12 @@ pub fn find_queen_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
 ) -> Vec<moves::UCIMove> {
-    let mut moves = Vec::with_capacity(4);
-    find_diagonal_moves(piece_square, color, white_taken, black_taken, &mut moves);
-    find_file_rank_moves(piece_square, color, white_taken, black_taken, &mut moves);
-    moves
+    let attack_bitboard1 = find_diagonal_moves(piece_square, color, white_taken, black_taken);
+    let attack_bitboard2 = find_file_rank_moves(piece_square, color, white_taken, black_taken);
+    let sum_attacks = attack_bitboard1 | attack_bitboard2;
+
+    let iter = MoveIter::new(piece_square, sum_attacks, false);
+    iter.collect::<Vec<moves::UCIMove>>()
 }
 
 /// Generates code that checks whether a positive ray cast from the given square
