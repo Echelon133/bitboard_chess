@@ -2488,7 +2488,7 @@ mod tests {
     }
 
     #[test]
-    fn moveiter_nonpromoting_size_hint_returns_exact_remaining_length() {
+    fn moveiter_nonpromoting_len_returns_exact_remaining_length() {
         let start_square = square::Square::try_from("e2").unwrap();
         let mut targets = bitboard::Bitboard::default();
 
@@ -2511,7 +2511,7 @@ mod tests {
     }
 
     #[test]
-    fn moveiter_promoting_size_hint_returns_exact_remaining_length() {
+    fn moveiter_promoting_len_returns_exact_remaining_length() {
         let start_square = square::Square::try_from("d7").unwrap();
         let mut targets = bitboard::Bitboard::default();
 
