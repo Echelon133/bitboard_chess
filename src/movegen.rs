@@ -374,12 +374,9 @@ macro_rules! positive_ray_attack {
             let blocker_index = blocker.bitscan_forward() as usize;
             let blocker_ray = $crate::bitboard::Bitboard::from($rays[blocker_index]);
             attack = attack ^ blocker_ray;
-            // if the blocker piece and the attacking piece have the same color,
-            // do not attack the blocking piece
-            let blocker_square = $crate::square::Square::from(blocker_index as u8);
-            if $own_pieces.is_set(blocker_square) {
-                attack.clear(blocker_square);
-            }
+            // remove a potential attack on player's own piece if the blocking piece
+            // is also a part of own_pieces
+            attack = attack & (!$own_pieces);
         }
         attack
     }};
@@ -433,12 +430,9 @@ macro_rules! negative_ray_attack {
             let blocker_index = blocker.bitscan_reverse() as usize;
             let blocker_ray = $crate::bitboard::Bitboard::from($rays[blocker_index]);
             attack = attack ^ blocker_ray;
-            // if the blocker piece and the attacking piece have the same color,
-            // do not attack the blocking piece
-            let blocker_square = $crate::square::Square::from(blocker_index as u8);
-            if $own_pieces.is_set(blocker_square) {
-                attack.clear(blocker_square);
-            }
+            // remove a potential attack on player's own piece if the blocking piece
+            // is also a part of own_pieces
+            attack = attack & (!$own_pieces);
         }
         attack
     }};
