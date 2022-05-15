@@ -200,6 +200,12 @@ impl Iterator for SquareIter {
     }
 }
 
+impl ExactSizeIterator for SquareIter {
+    fn len(&self) -> usize {
+        self.size as usize   
+    }
+}
+
 impl Default for Bitboard {
     /// Returns a default bitboard with all bits set to 0.
     fn default() -> Self {
