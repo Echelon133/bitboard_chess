@@ -754,40 +754,18 @@ pub fn is_square_attacked(
     // ================= CHECK PAWNS ============================
     let pawn_piece = piece::Piece::new(piece::Kind::Pawn, enemy_color);
     let enemy_pawns = *board.get_piece_bitboard(&pawn_piece);
-
-    let piece_file = square.get_file();
-    // pieces can only be attacked by enemy pawns on their diagonals if:
-    // - white pawns are one rank above (closer to the 8th rank)
-    // - black pawns are one rank below (closer to the 1st rank)
-    //
-    // if the piece is on the A file or H file, one diagonal simply does not exist
-    if piece_file != square::File::A {
-        let left_square_index = match piece_color {
-            piece::Color::White => index + 7,
-            piece::Color::Black => index - 9,
-        };
-        // check if the left square is not above/below the board's boundaries
-        if (0..=63).contains(&left_square_index) {
-            let left_square = square::Square::from(left_square_index as u8);
-            if enemy_pawns.is_set(left_square) {
-                return true;
-            }
+    let pawn_attack_pattern = match piece_color {
+        piece::Color::White => {
+            WHITE_PAWN_ATTACK_PATTERNS[index]
+        },
+        piece::Color::Black => {
+            BLACK_PAWN_ATTACK_PATTERNS[index]
         }
-    }
-
-    if piece_file != square::File::H {
-        let right_square_index = match piece_color {
-            piece::Color::White => index + 9,
-            piece::Color::Black => index - 7,
-        };
-
-        // check if the right square is not above/below the board's boundaries
-        if (0..=63).contains(&right_square_index) {
-            let right_square = square::Square::from(right_square_index as u8);
-            if enemy_pawns.is_set(right_square) {
-                return true;
-            }
-        }
+    };
+    let pawn_attack_pattern = bitboard::Bitboard::from(pawn_attack_pattern);
+    let pawn_attack = pawn_attack_pattern & enemy_pawns;
+    if pawn_attack.count_set() != 0 {
+        return true;
     }
 
     // if there is not a single piece that attacks the checked square
