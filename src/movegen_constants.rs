@@ -3,7 +3,7 @@
 /// squares are attacked by a pawn from that square.
 ///
 /// # Example
-/// The attack pattern for a pawn on the b2 square (index 9) is represented by 
+/// The attack pattern for a pawn on the b2 square (index 9) is represented by
 /// 0x5_00_00, which (displayed as a bitboard) looks like this:
 /// ```
 /// 00000000 // 0x00
