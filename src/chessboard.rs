@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::bitboard;
 use crate::board;
 use crate::context;
 use crate::movegen;
@@ -145,6 +146,134 @@ const BLACK_QSIDE_CASTLING_INFO: (
     square::Square::new(square::Rank::R8, square::File::E),
 );
 
+/// Iterator over [`movegen::MoveIter`] iterators. There is a single [`movegen::MoveIter`] for
+/// every single square that's occupied by the player who is about to make a move.
+///
+/// # Example
+/// If the board has a default setup, and white is about to play, `MoveIterIter` will contain
+/// 20 iterators (one for every white piece on the board), and each [`movegen::MoveIter`]
+/// will give out moves of a single piece.
+///
+/// This iterator only calls movegen functions when `next()` is called, which means that
+/// the search for pseudo-legal moves of a particular piece only happens when it's necessary.
+#[derive(Clone, Copy)]
+pub struct MoveIterIter {
+    color_to_play: piece::Color,
+    own_pieces: bitboard::SquareIter,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
+    inner_board: board::Board,
+    context: context::Context,
+}
+
+impl MoveIterIter {
+    pub fn new(inner_board: board::Board, context: context::Context) -> Self {
+        let color_to_play = context.get_color_to_play();
+        Self {
+            color_to_play,
+            own_pieces: inner_board.get_squares_taken(color_to_play).iter(),
+            white_taken: *inner_board.get_squares_taken(piece::Color::White),
+            black_taken: *inner_board.get_squares_taken(piece::Color::Black),
+            inner_board,
+            context,
+        }
+    }
+}
+
+impl Iterator for MoveIterIter {
+    type Item = movegen::MoveIter;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(occupied_square) = self.own_pieces.next() {
+            let piece_kind = self
+                .inner_board
+                .get_piece(occupied_square)
+                .unwrap()
+                .get_kind();
+
+            let color_to_play = self.color_to_play;
+            let white = &self.white_taken;
+            let black = &self.black_taken;
+            let context = self.context;
+
+            let move_iter = match piece_kind {
+                piece::Kind::Pawn => {
+                    movegen::find_pawn_moves(occupied_square, color_to_play, white, black, &context)
+                }
+                piece::Kind::Bishop => {
+                    movegen::find_bishop_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Rook => {
+                    movegen::find_rook_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Knight => {
+                    movegen::find_knight_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Queen => {
+                    movegen::find_queen_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::King => {
+                    movegen::find_king_moves(occupied_square, color_to_play, white, black, &context)
+                }
+            };
+            Some(move_iter)
+        } else {
+            None
+        }
+    }
+}
+
+/// Iterator over legal moves of the player that is currently making a move.
+///
+/// It iterates over [`MoveIterIter`], which gives out iterators of pseudo-legal moves.
+/// It returns items as long as there are pseudo-legal moves that are verified as legal
+/// by the [`Self::is_move_legal`] method.
+pub struct LegalMovesIter {
+    iterators: MoveIterIter,
+    current_iter: Option<movegen::MoveIter>,
+    board: Chessboard,
+}
+
+impl LegalMovesIter {
+    pub fn new(mut iterators: MoveIterIter, board: Chessboard) -> Self {
+        let current_iter = iterators.next();
+        Self {
+            iterators,
+            current_iter,
+            board,
+        }
+    }
+}
+
+impl Iterator for LegalMovesIter {
+    type Item = moves::UCIMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match &mut self.current_iter {
+                Some(iter) => match iter.next() {
+                    Some(mv) => {
+                        if self.board.is_move_legal(&mv) {
+                            return Some(mv);
+                        }
+                    }
+                    None => {
+                        self.current_iter = self.iterators.next();
+                        continue;
+                    }
+                },
+                None => {
+                    self.current_iter = self.iterators.next();
+                    // two None in a row mean that there is no more moves
+                    if self.current_iter.is_none() {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Holds information about a move that's been executed on the board.
 ///
 /// This struct is used for storing information that's used for verifying correctness
@@ -192,6 +321,19 @@ pub struct Chessboard {
     end_result: Option<MoveResult>,
 }
 
+impl Clone for Chessboard {
+    /// Returns a shallow copy of [`Chessboard`] that does not preserve the history
+    /// of moves that have been played on it.
+    fn clone(&self) -> Self {
+        Self {
+            inner_board: self.inner_board.clone(),
+            context: self.context.clone(),
+            history: Vec::new(),
+            end_result: self.end_result,
+        }
+    }
+}
+
 impl Chessboard {
     /// Executes a move on the board. If the move is not legal, meaning:
     /// - it's incorrect for the type of piece which is being moved
@@ -226,16 +368,11 @@ impl Chessboard {
             }
         }
 
-        // don't compile this in test mode, because during tests legality of moves
-        // is enforced by only executing this method with moves that have been generated
-        // by movegen functions for the current state of the board
-        #[cfg(not(test))]
-        {
-            let legal_moves = self.find_all_legal_moves();
-            if !legal_moves.contains(&m) {
-                return Err("illegal move");
-            }
-        }
+        // TODO: check if the given move is legal by:
+        // - checking if there is a piece on the start square
+        // - checking if there is a pseudo-legal move between start and target
+        // - checking if that move is legal
+        // if it's false at any point, then the move is illegal
 
         match m {
             moves::UCIMove::Regular { m: mv } => {
@@ -259,7 +396,7 @@ impl Chessboard {
         // TODO: instead of calling find_all_legal_moves, create some function that
         // simply checks whether there is at least a single legal move, because
         // it's unnecessary to look for all of them and waste time
-        let num_next_player_moves = self.find_all_legal_moves().iter().count();
+        let next_player_has_no_moves = self.iter_legal_moves().next().is_none();
         let is_king_in_check = self.is_king_in_check(color_to_play);
 
         let info = MoveInfo {
@@ -270,7 +407,7 @@ impl Chessboard {
             checked_opponent: is_king_in_check,
         };
 
-        if num_next_player_moves == 0 {
+        if next_player_has_no_moves {
             if is_king_in_check {
                 // the winner is the previous color
                 let winner = match color_to_play {
@@ -875,52 +1012,11 @@ impl Chessboard {
         movegen::is_king_in_check(king_color, &self.inner_board)
     }
 
-    /// Finds all legal moves which can be executed by the current player.
-    pub fn find_all_legal_moves(&mut self) -> Vec<moves::UCIMove> {
-        let mut moves = Vec::new();
-        let color_to_play = self.context.get_color_to_play();
-        let own_pieces = self.inner_board.get_squares_taken(color_to_play);
-        let (white, black) = self.inner_board.get_squares_taken_pair();
-
-        for occupied_square in own_pieces.iter() {
-            let piece_kind = self
-                .inner_board
-                .get_piece(occupied_square)
-                .unwrap()
-                .get_kind();
-            let mut found_moves = match piece_kind {
-                piece::Kind::Pawn => movegen::find_pawn_moves(
-                    occupied_square,
-                    color_to_play,
-                    white,
-                    black,
-                    &self.context,
-                ),
-                piece::Kind::Bishop => {
-                    movegen::find_bishop_moves(occupied_square, color_to_play, white, black)
-                }
-                piece::Kind::Rook => {
-                    movegen::find_rook_moves(occupied_square, color_to_play, white, black)
-                }
-                piece::Kind::Knight => {
-                    movegen::find_knight_moves(occupied_square, color_to_play, white, black)
-                }
-                piece::Kind::Queen => {
-                    movegen::find_queen_moves(occupied_square, color_to_play, white, black)
-                }
-                piece::Kind::King => movegen::find_king_moves(
-                    occupied_square,
-                    color_to_play,
-                    white,
-                    black,
-                    &self.context,
-                ),
-            };
-            moves.append(&mut found_moves);
-        }
-
-        moves.retain(|mv| self.is_move_legal(&mv));
-        moves
+    /// Returns an iterator over legal moves of the player who is
+    /// currently about to make a move.
+    pub fn iter_legal_moves(&mut self) -> LegalMovesIter {
+        let pseudolegal = MoveIterIter::new(self.inner_board, self.context);
+        LegalMovesIter::new(pseudolegal, self.clone())
     }
 }
 
@@ -1076,7 +1172,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&white_castling_move));
         }
@@ -1091,7 +1187,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&black_castling_move));
         }
@@ -1110,7 +1206,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&white_castling_move));
         }
@@ -1126,7 +1222,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&black_castling_move));
         }
@@ -1138,7 +1234,7 @@ Fullmove: 14
         let rook_h1_attacked = "rnb1kbnr/ppp3pp/8/3q4/8/8/PPPPP2P/RNBQK2R w KQkq - 0 1";
         let white_castling_move = moves::UCIMove::try_from("e1g1").unwrap();
         let mut board = Chessboard::try_from(rook_h1_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
+        let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
         // should contain the move, because castling when only the rook is attacked is legal
         assert!(available_moves.contains(&white_castling_move));
 
@@ -1146,7 +1242,7 @@ Fullmove: 14
         let rook_h8_attacked = "rnbqk2r/pppp3p/8/3P4/8/2Q5/PPP1PPPP/R1B1K1NR b KQkq - 0 1";
         let black_castling_move = moves::UCIMove::try_from("e8g8").unwrap();
         let mut board = Chessboard::try_from(rook_h8_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
+        let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
         // should contain the move, because castling when only the rook is attacked is legal
         assert!(available_moves.contains(&black_castling_move));
     }
@@ -1163,7 +1259,7 @@ Fullmove: 14
         for fen in fens {
             let white_castling_move = moves::UCIMove::try_from("e1c1").unwrap();
             let mut board = Chessboard::try_from(fen).unwrap();
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             assert!(available_moves.contains(&white_castling_move));
         }
 
@@ -1177,7 +1273,7 @@ Fullmove: 14
         for fen in fens {
             let black_castling_move = moves::UCIMove::try_from("e8c8").unwrap();
             let mut board = Chessboard::try_from(fen).unwrap();
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             assert!(available_moves.contains(&black_castling_move));
         }
     }
@@ -1272,10 +1368,10 @@ mod perft {
     ///
     /// See: https://www.chessprogramming.org/Perft
     fn perft(board: &mut Chessboard, depth_max: u8, results: &mut HashMap<u8, PerftResult>) {
-        let all_initial_moves = board.find_all_legal_moves();
+        let all_initial_moves = board.iter_legal_moves();
         let mut leaf_counters: HashMap<moves::UCIMove, std::cell::RefCell<usize>> = HashMap::new();
 
-        for initial_move in &all_initial_moves {
+        for initial_move in all_initial_moves {
             // when counting nodes, the first move is the key of the node which is then propagated
             // further, until a leaf node is reached, when the counter is incremented by 1
             leaf_counters.insert(initial_move.clone(), std::cell::RefCell::new(0));
@@ -1294,7 +1390,7 @@ mod perft {
             let result = results.entry(1).or_insert(PerftResult::default());
             result.nodes += 1;
 
-            let game_result = board.execute_move(initial_move).unwrap();
+            let game_result = board.execute_move(&initial_move).unwrap();
             match game_result {
                 MoveResult::Continues { info } => {
                     perft_update_results(result, info);
@@ -1344,9 +1440,9 @@ mod perft {
             return;
         }
 
-        let all_legal_moves = board.find_all_legal_moves();
-        for uci_move in &all_legal_moves {
-            let game_result = board.execute_move(uci_move).unwrap();
+        let all_legal_moves = board.iter_legal_moves();
+        for uci_move in all_legal_moves {
+            let game_result = board.execute_move(&uci_move).unwrap();
 
             let result = results.entry(depth).or_insert(PerftResult::default());
             result.nodes += 1;

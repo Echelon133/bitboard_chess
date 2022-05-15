@@ -159,7 +159,7 @@ impl Debug for Bitboard {
 
 /// Iterator which returns [`square::Square`] objects of all bits
 /// that are set on the bitboard.
-///
+#[derive(Clone, Copy)]
 pub struct SquareIter {
     bits: u64,
     size: u8,
@@ -202,7 +202,7 @@ impl Iterator for SquareIter {
 
 impl ExactSizeIterator for SquareIter {
     fn len(&self) -> usize {
-        self.size as usize   
+        self.size as usize
     }
 }
 

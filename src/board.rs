@@ -6,6 +6,7 @@ use crate::square;
 
 /// Represents the chessboard on a very low level. Only contains methods
 /// that either read or manipulate the state of the board (what pieces are placed where).
+#[derive(Clone, Copy)]
 pub struct Board {
     // Both white_pieces and black_pieces are arrays of 6 elements, with every element
     // representing squares taken by a single piece kind.
