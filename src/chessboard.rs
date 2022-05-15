@@ -192,8 +192,8 @@ impl Iterator for MoveIterIter {
                 .get_kind();
 
             let color_to_play = self.color_to_play;
-            let white = &self.white_taken;
-            let black = &self.black_taken;
+            let white = self.white_taken;
+            let black = self.black_taken;
             let context = self.context;
 
             let move_iter = match piece_kind {

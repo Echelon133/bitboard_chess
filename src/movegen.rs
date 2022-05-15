@@ -128,11 +128,11 @@ impl ExactSizeIterator for MoveIter {
 pub fn find_pawn_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
     context: &context::Context,
 ) -> MoveIter {
-    let all_taken = *white_taken | *black_taken;
+    let all_taken = white_taken | black_taken;
 
     let pawn_index = piece_square.get_index();
     let pawn_rank = piece_square.get_rank();
@@ -165,7 +165,7 @@ pub fn find_pawn_moves(
         }
 
         // calculate attacks
-        let attack_squares = attack_pattern & *enemy_pieces;
+        let attack_squares = attack_pattern & enemy_pieces;
         let target_squares = target_squares | attack_squares;
 
         MoveIter::new(piece_square, target_squares, true)
@@ -190,7 +190,7 @@ pub fn find_pawn_moves(
         }
 
         // calculate attacks
-        let attack_squares = attack_pattern & *enemy_pieces;
+        let attack_squares = attack_pattern & enemy_pieces;
         let mut target_squares = target_squares | attack_squares;
 
         // calculate en passant
@@ -242,12 +242,12 @@ pub fn find_pawn_moves(
 pub fn find_knight_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> MoveIter {
     let own_pieces = match color {
-        piece::Color::White => *white_taken,
-        piece::Color::Black => *black_taken,
+        piece::Color::White => white_taken,
+        piece::Color::Black => black_taken,
     };
 
     // retrieve a precalculated knight attack pattern and make a bitboard using
@@ -276,16 +276,16 @@ pub fn find_knight_moves(
 pub fn find_king_moves(
     piece_square: square::Square,
     own_color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
     context: &context::Context,
 ) -> MoveIter {
     let own_pieces = match own_color {
-        piece::Color::White => *white_taken,
-        piece::Color::Black => *black_taken,
+        piece::Color::White => white_taken,
+        piece::Color::Black => black_taken,
     };
 
-    let all_taken = *white_taken | *black_taken;
+    let all_taken = white_taken | black_taken;
 
     // retrieve a precalculated king attack pattern and make a bitboard using
     // all bits of that pattern
@@ -457,15 +457,15 @@ macro_rules! negative_ray_attack {
 fn find_file_rank_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> bitboard::Bitboard {
     let own_pieces = match color {
         piece::Color::White => white_taken,
         piece::Color::Black => black_taken,
     };
 
-    let all_taken = *white_taken | *black_taken;
+    let all_taken = white_taken | black_taken;
     let index = piece_square.get_index();
 
     let north_attack = positive_ray_attack!(NORTH_ATTACK_RAYS, own_pieces, all_taken, index);
@@ -486,8 +486,8 @@ fn find_file_rank_moves(
 pub fn find_rook_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> MoveIter {
     let attack_bitboard = find_file_rank_moves(piece_square, color, white_taken, black_taken);
     MoveIter::new(piece_square, attack_bitboard, false)
@@ -505,15 +505,15 @@ pub fn find_rook_moves(
 fn find_diagonal_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> bitboard::Bitboard {
     let own_pieces = match color {
         piece::Color::White => white_taken,
         piece::Color::Black => black_taken,
     };
 
-    let all_taken = *white_taken | *black_taken;
+    let all_taken = white_taken | black_taken;
     let index = piece_square.get_index();
 
     let ne_attack = positive_ray_attack!(NORTHEAST_ATTACK_RAYS, own_pieces, all_taken, index);
@@ -534,8 +534,8 @@ fn find_diagonal_moves(
 pub fn find_bishop_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> MoveIter {
     let attack_bitboard = find_diagonal_moves(piece_square, color, white_taken, black_taken);
     MoveIter::new(piece_square, attack_bitboard, false)
@@ -549,8 +549,8 @@ pub fn find_bishop_moves(
 pub fn find_queen_moves(
     piece_square: square::Square,
     color: piece::Color,
-    white_taken: &bitboard::Bitboard,
-    black_taken: &bitboard::Bitboard,
+    white_taken: bitboard::Bitboard,
+    black_taken: bitboard::Bitboard,
 ) -> MoveIter {
     let attack_bitboard1 = find_diagonal_moves(piece_square, color, white_taken, black_taken);
     let attack_bitboard2 = find_file_rank_moves(piece_square, color, white_taken, black_taken);
@@ -827,13 +827,6 @@ mod tests {
     use crate::piece;
     use crate::square;
 
-    fn extract_squares_taken(board: &board::Board) -> (&bitboard::Bitboard, &bitboard::Bitboard) {
-        (
-            board.get_squares_taken(piece::Color::White),
-            board.get_squares_taken(piece::Color::Black),
-        )
-    }
-
     /// Extracts target squares from each item from [`MoveIter`].
     fn extract_targets(m: MoveIter) -> Vec<square::Square> {
         let mut result = Vec::with_capacity(m.len());
@@ -863,7 +856,7 @@ mod tests {
 
     macro_rules! check_pawn {
         ($color:ident $square:literal on $board:ident having $context:ident can be moved to $targets:ident) => {
-            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves = $crate::movegen::find_pawn_moves(
                 square,
@@ -880,7 +873,7 @@ mod tests {
             }
         };
         ($color:ident $square:literal on $board:ident having $context:ident cannot be moved) => {
-            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves = $crate::movegen::find_pawn_moves(
                 square,
@@ -892,7 +885,7 @@ mod tests {
             assert_eq!(found_moves.len(), 0);
         };
         ($color:ident $square:literal on $board:ident having $context:ident can be promoted on $targets:ident) => {
-            let (white_taken, black_taken) = extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves = $crate::movegen::find_pawn_moves(
                 square,
@@ -925,9 +918,10 @@ mod tests {
 
     macro_rules! check_knight {
         (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_knight_moves(square, $color, white, black);
+            let found_moves =
+                $crate::movegen::find_knight_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $num);
 
             // get (file, rank) indexes of the knight's square
@@ -960,10 +954,16 @@ mod tests {
         (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
             // in this case, context should by default not allow any castling
             let context = $crate::context::Context::try_from("w - - 0 1").unwrap();
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves =
-                $crate::movegen::find_king_moves(square, $color, white, black, &context);
+            let found_moves = $crate::movegen::find_king_moves(
+                square,
+                $color,
+                white_taken,
+                black_taken,
+                &context,
+            );
             assert_eq!(found_moves.len(), $num);
 
             // get (file, rank) indexes of the king's square
@@ -992,18 +992,22 @@ mod tests {
             }
         };
         ($color:ident can castle $castle:literal on $board:ident having $context:ident) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let (king_square, kingside_target, queenside_target) = match $color {
                 $crate::piece::Color::White => ("e1", "g1", "c1"),
                 $crate::piece::Color::Black => ("e8", "g8", "c8"),
             };
 
             let square = $crate::square::Square::try_from(king_square).unwrap();
-            let found_moves =
-                $crate::movegen::find_king_moves(square, $color, white, black, $context);
+            let found_moves = $crate::movegen::find_king_moves(
+                square,
+                $color,
+                white_taken,
+                black_taken,
+                $context,
+            );
 
             let targets = $crate::movegen::tests::extract_targets(found_moves);
-            println!("{:?}", targets);
 
             let kside = $crate::square::Square::try_from(kingside_target).unwrap();
             let qside = $crate::square::Square::try_from(queenside_target).unwrap();
@@ -1031,9 +1035,10 @@ mod tests {
 
     macro_rules! check_rook {
         (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_rook_moves(square, $color, white, black);
+            let found_moves =
+                $crate::movegen::find_rook_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $num);
 
             // get (file, rank) indexes of the rook's square
@@ -1058,7 +1063,7 @@ mod tests {
             }
         };
         ($color:ident $square:literal on $board:ident can be moved to $targets:ident) => {
-            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves =
                 $crate::movegen::find_rook_moves(square, $color, white_taken, black_taken);
@@ -1073,9 +1078,10 @@ mod tests {
 
     macro_rules! check_bishop {
         (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_bishop_moves(square, $color, white, black);
+            let found_moves =
+                $crate::movegen::find_bishop_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $num);
 
             // get (file, rank) indexes of the rook's square
@@ -1101,7 +1107,7 @@ mod tests {
             }
         };
         ($color:ident $square:literal on $board:ident can be moved to $targets:ident) => {
-            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves =
                 $crate::movegen::find_bishop_moves(square, $color, white_taken, black_taken);
@@ -1116,9 +1122,9 @@ mod tests {
 
     macro_rules! check_queen {
         (number of correct moves of $color:ident $square:ident on $board:ident is $num:expr) => {
-            let (white, black) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
-            let found_moves = $crate::movegen::find_queen_moves(square, $color, white, black);
+            let found_moves = $crate::movegen::find_queen_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $num);
 
             // get (file, rank) indexes of the rook's square
@@ -1149,7 +1155,7 @@ mod tests {
             }
         };
         ($color:ident $square:literal on $board:ident can be moved to $targets:ident) => {
-            let (white_taken, black_taken) = $crate::movegen::tests::extract_squares_taken($board);
+            let (white_taken, black_taken) = $board.get_squares_taken_pair();
             let square = $crate::square::Square::try_from($square).unwrap();
             let found_moves =
                 $crate::movegen::find_queen_moves(square, $color, white_taken, black_taken);

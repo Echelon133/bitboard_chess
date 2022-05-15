@@ -179,8 +179,8 @@ impl Board {
     }
 
     /// Returns a pair of (white_taken, black_taken) bitboards.
-    pub fn get_squares_taken_pair(&self) -> (&bitboard::Bitboard, &bitboard::Bitboard) {
-        (&self.white_taken, &self.black_taken)
+    pub fn get_squares_taken_pair(&self) -> (bitboard::Bitboard, bitboard::Bitboard) {
+        (self.white_taken, self.black_taken)
     }
 }
 
