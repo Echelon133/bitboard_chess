@@ -131,7 +131,7 @@ pub fn find_pawn_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
     context: &context::Context,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let all_taken = *white_taken | *black_taken;
 
     let pawn_index = piece_square.get_index();
@@ -168,8 +168,7 @@ pub fn find_pawn_moves(
         let attack_squares = attack_pattern & *enemy_pieces;
         let target_squares = target_squares | attack_squares;
 
-        let iter = MoveIter::new(piece_square, target_squares, true);
-        iter.collect::<Vec<moves::UCIMove>>()
+        MoveIter::new(piece_square, target_squares, true)
     } else {
         let mut target_squares = bitboard::Bitboard::default();
         // calculate single push forward (guaranteed to be within the board)
@@ -217,9 +216,7 @@ pub fn find_pawn_moves(
                 target_squares.set(enpassant_target);
             }
         }
-
-        let iter = MoveIter::new(piece_square, target_squares, false);
-        iter.collect::<Vec<moves::UCIMove>>()
+        MoveIter::new(piece_square, target_squares, false)
     }
 }
 
@@ -247,7 +244,7 @@ pub fn find_knight_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let own_pieces = match color {
         piece::Color::White => *white_taken,
         piece::Color::Black => *black_taken,
@@ -260,8 +257,7 @@ pub fn find_knight_moves(
     // only attack squares where there are no pieces the same color as the knight
     let attack_bitboard = attack_bitboard & (!own_pieces);
 
-    let iter = MoveIter::new(piece_square, attack_bitboard, false);
-    iter.collect::<Vec<moves::UCIMove>>()
+    MoveIter::new(piece_square, attack_bitboard, false)
 }
 
 /// Finds all pseudo-legal moves for the king on the given square.
@@ -283,7 +279,7 @@ pub fn find_king_moves(
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
     context: &context::Context,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let own_pieces = match own_color {
         piece::Color::White => *white_taken,
         piece::Color::Black => *black_taken,
@@ -327,8 +323,7 @@ pub fn find_king_moves(
         }
     }
 
-    let iter = MoveIter::new(piece_square, attack_bitboard, false);
-    iter.collect::<Vec<moves::UCIMove>>()
+    MoveIter::new(piece_square, attack_bitboard, false)
 }
 
 /// Generates code that handles the creation of attack bitboards for rays that are positive
@@ -493,10 +488,9 @@ pub fn find_rook_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let attack_bitboard = find_file_rank_moves(piece_square, color, white_taken, black_taken);
-    let iter = MoveIter::new(piece_square, attack_bitboard, false);
-    iter.collect::<Vec<moves::UCIMove>>()
+    MoveIter::new(piece_square, attack_bitboard, false)
 }
 
 /// Finds all pseudo-legal moves for a sliding piece that moves
@@ -542,10 +536,9 @@ pub fn find_bishop_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let attack_bitboard = find_diagonal_moves(piece_square, color, white_taken, black_taken);
-    let iter = MoveIter::new(piece_square, attack_bitboard, false);
-    iter.collect::<Vec<moves::UCIMove>>()
+    MoveIter::new(piece_square, attack_bitboard, false)
 }
 
 /// Finds all pseudo-legal moves for the queen on the given square.
@@ -558,13 +551,12 @@ pub fn find_queen_moves(
     color: piece::Color,
     white_taken: &bitboard::Bitboard,
     black_taken: &bitboard::Bitboard,
-) -> Vec<moves::UCIMove> {
+) -> MoveIter {
     let attack_bitboard1 = find_diagonal_moves(piece_square, color, white_taken, black_taken);
     let attack_bitboard2 = find_file_rank_moves(piece_square, color, white_taken, black_taken);
     let sum_attacks = attack_bitboard1 | attack_bitboard2;
 
-    let iter = MoveIter::new(piece_square, sum_attacks, false);
-    iter.collect::<Vec<moves::UCIMove>>()
+    MoveIter::new(piece_square, sum_attacks, false)
 }
 
 /// Generates code that checks whether a positive ray cast from the given square
@@ -842,10 +834,10 @@ mod tests {
         )
     }
 
-    /// Extracts target squares from all [`moves::UCIMove`].
-    fn extract_targets(m: &Vec<moves::UCIMove>) -> Vec<square::Square> {
+    /// Extracts target squares from each item from [`MoveIter`].
+    fn extract_targets(m: MoveIter) -> Vec<square::Square> {
         let mut result = Vec::with_capacity(m.len());
-        for mv in m.iter() {
+        for mv in m {
             match mv {
                 moves::UCIMove::Regular { m } => {
                     result.push(m.get_target());
@@ -881,7 +873,7 @@ mod tests {
                 $context,
             );
             assert_eq!(found_moves.len(), $targets.len());
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
             for target in expected_targets {
                 assert!(targets.contains(&target));
@@ -925,8 +917,8 @@ mod tests {
                 }
             }
 
-            for found_move in &found_moves {
-                assert!(expected_moves.contains(found_move));
+            for found_move in found_moves {
+                assert!(expected_moves.contains(&found_move));
             }
         };
     }
@@ -942,7 +934,7 @@ mod tests {
             let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
             let (file_i, rank_i) = (file_i as i8, rank_i as i8);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
 
             // calculate differences between (file, rank) indexes of the knight's square
             // and (file, rank) indexes of all squares that find_knight_moves has found
@@ -978,7 +970,7 @@ mod tests {
             let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
             let (file_i, rank_i) = (file_i as i8, rank_i as i8);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
 
             // calculate differences between (file, rank) indexes of the king's square
             // and (file, rank) indexes of all squares that find_king_moves has found
@@ -1010,7 +1002,7 @@ mod tests {
             let found_moves =
                 $crate::movegen::find_king_moves(square, $color, white, black, $context);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
             println!("{:?}", targets);
 
             let kside = $crate::square::Square::try_from(kingside_target).unwrap();
@@ -1048,7 +1040,7 @@ mod tests {
             let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
             let (file_i, rank_i) = (file_i as i8, rank_i as i8);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
 
             // calculate differences between (file, rank) indexes of the rook's square
             // and (file, rank) indexes of all squares that find_rook_moves has found
@@ -1071,7 +1063,7 @@ mod tests {
             let found_moves =
                 $crate::movegen::find_rook_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $targets.len());
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
             for target in expected_targets {
                 assert!(targets.contains(&target));
@@ -1090,7 +1082,7 @@ mod tests {
             let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
             let (file_i, rank_i) = (file_i as i8, rank_i as i8);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
 
             // calculate differences between (file, rank) indexes of the bishop's square
             // and (file, rank) indexes of all squares that find_bishop_moves has found
@@ -1114,7 +1106,7 @@ mod tests {
             let found_moves =
                 $crate::movegen::find_bishop_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $targets.len());
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
             for target in expected_targets {
                 assert!(targets.contains(&target));
@@ -1133,7 +1125,7 @@ mod tests {
             let (file_i, rank_i) = (square.get_file().index(), square.get_rank().index());
             let (file_i, rank_i) = (file_i as i8, rank_i as i8);
 
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
 
             // calculate differences between (file, rank) indexes of the queen's square
             // and (file, rank) indexes of all squares that find_queen_moves has found
@@ -1162,7 +1154,7 @@ mod tests {
             let found_moves =
                 $crate::movegen::find_queen_moves(square, $color, white_taken, black_taken);
             assert_eq!(found_moves.len(), $targets.len());
-            let targets = $crate::movegen::tests::extract_targets(&found_moves);
+            let targets = $crate::movegen::tests::extract_targets(found_moves);
             let expected_targets = $crate::movegen::tests::notation_to_squares($targets);
             for target in expected_targets {
                 assert!(targets.contains(&target));
