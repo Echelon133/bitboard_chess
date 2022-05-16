@@ -348,10 +348,9 @@ impl Chessboard {
     /// information about what happend in that move (if there was a capture, en passant,
     /// castle, promotion, check). This information greatly improves the debugging experience.
     ///
-    /// NOTE: this method checks moves for their legality only in the release mode.
-    /// While in test mode, these checks are disabled, because all moves that are
-    /// given to this method to execute are taken from legal move generating functions,
-    /// so move legality checks are omitted for performance reasons.
+    /// NOTE: this method only checks validity of received move if it's ran in the release mode.
+    /// During testing, all tests generate and use legal moves, which means that checking validity
+    /// of every move which is guaranteed to be valid only slows down tests.
     pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, &'static str> {
         let captured_piece;
         let mut took_enpassant = false;
