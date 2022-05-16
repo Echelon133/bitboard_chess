@@ -524,7 +524,6 @@ fn find_diagonal_moves(
 /// This function assumes that a piece that is placed on the given square
 /// is actually a bishop. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
-///
 pub fn find_bishop_moves(
     piece_square: square::Square,
     color: piece::Color,
@@ -539,7 +538,6 @@ pub fn find_bishop_moves(
 /// This function assumes that a piece that is placed on the given square
 /// is actually a queen. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
-///
 pub fn find_queen_moves(
     piece_square: square::Square,
     color: piece::Color,
@@ -752,12 +750,8 @@ pub fn is_square_attacked(
     let pawn_piece = piece::Piece::new(piece::Kind::Pawn, enemy_color);
     let enemy_pawns = *board.get_piece_bitboard(&pawn_piece);
     let pawn_attack_pattern = match piece_color {
-        piece::Color::White => {
-            WHITE_PAWN_ATTACK_PATTERNS[index]
-        },
-        piece::Color::Black => {
-            BLACK_PAWN_ATTACK_PATTERNS[index]
-        }
+        piece::Color::White => WHITE_PAWN_ATTACK_PATTERNS[index],
+        piece::Color::Black => BLACK_PAWN_ATTACK_PATTERNS[index],
     };
     let pawn_attack_pattern = bitboard::Bitboard::from(pawn_attack_pattern);
     let pawn_attack = pawn_attack_pattern & enemy_pawns;
