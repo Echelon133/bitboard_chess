@@ -393,9 +393,6 @@ impl Chessboard {
         let color_to_play = self.context.get_color_to_play();
 
         // check if the executed move has resulted in a checkmate
-        // TODO: instead of calling find_all_legal_moves, create some function that
-        // simply checks whether there is at least a single legal move, because
-        // it's unnecessary to look for all of them and waste time
         let next_player_has_no_moves = self.iter_legal_moves().next().is_none();
         let is_king_in_check = self.is_king_in_check(color_to_play);
 
@@ -839,8 +836,6 @@ impl Chessboard {
             ctx: saved_context,
         });
 
-        // TODO: make should_set_enpassant assume that the move is a pawn move,
-        // and call it within a piece::Kind::Pawn arm of the match above
         let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
         self.context.set_enpassant(enpassant_target);
         was_capturing
