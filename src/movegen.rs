@@ -447,7 +447,7 @@ macro_rules! negative_ray_attack {
 /// [How to calculate for positive rays](https://www.chessprogramming.org/Classical_Approach#Conditional)
 ///
 /// [How to calculate for negative rays](https://www.chessprogramming.org/Classical_Approach#Conditional_2)
-///
+#[inline(always)]
 fn find_file_rank_moves(
     piece_square: square::Square,
     color: piece::Color,
@@ -495,7 +495,7 @@ pub fn find_rook_moves(
 /// [How to calculate for positive rays](https://www.chessprogramming.org/Classical_Approach#Conditional)
 ///
 /// [How to calculate for negative rays](https://www.chessprogramming.org/Classical_Approach#Conditional_2)
-///
+#[inline(always)]
 fn find_diagonal_moves(
     piece_square: square::Square,
     color: piece::Color,
