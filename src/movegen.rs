@@ -680,17 +680,14 @@ pub fn is_square_attacked(
 ) -> bool {
     let index = square.get_index();
 
-    let enemy_color = match piece_color {
-        piece::Color::White => piece::Color::Black,
-        piece::Color::Black => piece::Color::White,
-    };
-
-    let (own_taken, enemy_taken) = match piece_color {
+    let (enemy_color, own_taken, enemy_taken) = match piece_color {
         piece::Color::White => (
+            piece::Color::Black,
             board.get_squares_taken(piece::Color::White),
             board.get_squares_taken(piece::Color::Black),
         ),
         piece::Color::Black => (
+            piece::Color::White,
             board.get_squares_taken(piece::Color::Black),
             board.get_squares_taken(piece::Color::White),
         ),
