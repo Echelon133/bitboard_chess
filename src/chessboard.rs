@@ -368,11 +368,18 @@ impl Chessboard {
             }
         }
 
-        // TODO: check if the given move is legal by:
-        // - checking if there is a piece on the start square
-        // - checking if there is a pseudo-legal move between start and target
-        // - checking if that move is legal
-        // if it's false at any point, then the move is illegal
+        // don't compile this check in test mode, because tests only execute moves that
+        // had previously been checked for their legality, therefore this check is
+        // unnecessary, as it does never return an error
+        #[cfg(not(test))]
+        {
+            // return error if the given move is a move that cannot even
+            // appear on the board (for any disqualifying reason described in can_be_played
+            // docs)
+            if !self.can_be_played(m) {
+                return Err("illegal move");
+            }
+        }
 
         match m {
             moves::UCIMove::Regular { m: mv } => {
@@ -434,6 +441,66 @@ impl Chessboard {
                 // - there is not enough material to checkmate
                 Ok(MoveResult::Continues { info })
             }
+        }
+    }
+
+    /// Returns true if the given move is a move that can appear on the board with its current
+    /// state.
+    ///
+    /// This means, that the move:
+    /// - has be start on a square that contains a piece
+    /// - has to be an actual pseudo-legal move that's currently possible on the board for
+    ///     the kind of piece that occupies that start square
+    /// - has to be a pseudo-legal move that can be verified as legal by `is_move_legal`
+    pub fn can_be_played(&mut self, m: &moves::UCIMove) -> bool {
+        let start = match *m {
+            moves::UCIMove::Regular { m } => m.get_start(),
+            moves::UCIMove::Promotion { m, .. } => m.get_start(),
+        };
+
+        match self.inner_board.get_piece(start) {
+            // there is a piece on the start square of the move
+            Some(piece) => {
+                let kind = piece.get_kind();
+                let color_to_play = self.context.get_color_to_play();
+                let (white, black) = self.inner_board.get_squares_taken_pair();
+                let context = self.context;
+
+                let pseudolegal_iter = match kind {
+                    piece::Kind::Pawn => {
+                        movegen::find_pawn_moves(start, color_to_play, white, black, &context)
+                    }
+                    piece::Kind::Bishop => {
+                        movegen::find_bishop_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Rook => {
+                        movegen::find_rook_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Knight => {
+                        movegen::find_knight_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Queen => {
+                        movegen::find_queen_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::King => {
+                        movegen::find_king_moves(start, color_to_play, white, black, &context)
+                    }
+                };
+
+                // iterate over pseudolegal moves to find the same move as in the argument
+                // of this method
+                for pseudolegal_mv in pseudolegal_iter {
+                    if pseudolegal_mv == *m {
+                        // if there is such a pseudo-legal move, check if it's legal
+                        return self.is_move_legal(&pseudolegal_mv);
+                    }
+                }
+                // didn't find the move while iterating, therefore the move is not even
+                // pseudo-legal, so it definitely cannot be played
+                false
+            }
+            // no piece on the start square, therefore no move
+            None => false,
         }
     }
 
