@@ -322,12 +322,6 @@ mod tests {
 
         let empty_debug = format!("{:?}", bitboard);
         assert_eq!(expected_empty, empty_debug);
-
-        //for file in 'a'..='h' {
-        //    let square = format!("{}1", file);
-        //    bitboard.set(square::Square::try_from(square.as_ref()).unwrap());
-        //}
-        //println!("{:?}", bitboard);
     }
 
     #[test]
