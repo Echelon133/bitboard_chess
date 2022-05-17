@@ -66,86 +66,6 @@ const WHITE_KSIDE_ROOK_START: square::Square =
 const BLACK_KSIDE_ROOK_START: square::Square =
     square::Square::new(square::Rank::R8, square::File::H);
 
-/// Contains info about squares which are used during undoing of white kingside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const WHITE_KSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R1, square::File::F),
-    square::Square::new(square::Rank::R1, square::File::H),
-    square::Square::new(square::Rank::R1, square::File::G),
-    square::Square::new(square::Rank::R1, square::File::E),
-);
-
-/// Contains info about squares which are used during undoing of black kingside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const BLACK_KSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R8, square::File::F),
-    square::Square::new(square::Rank::R8, square::File::H),
-    square::Square::new(square::Rank::R8, square::File::G),
-    square::Square::new(square::Rank::R8, square::File::E),
-);
-
-/// Contains info about squares which are used during undoing of white queenside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const WHITE_QSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R1, square::File::D),
-    square::Square::new(square::Rank::R1, square::File::A),
-    square::Square::new(square::Rank::R1, square::File::C),
-    square::Square::new(square::Rank::R1, square::File::E),
-);
-
-/// Contains info about squares which are used during undoing of black queenside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const BLACK_QSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R8, square::File::D),
-    square::Square::new(square::Rank::R8, square::File::A),
-    square::Square::new(square::Rank::R8, square::File::C),
-    square::Square::new(square::Rank::R8, square::File::E),
-);
-
 /// Iterator over [`movegen::MoveIter`] iterators. There is a single [`movegen::MoveIter`] for
 /// every single square that's occupied by the player who is about to make a move.
 ///
@@ -335,6 +255,10 @@ impl Clone for Chessboard {
 }
 
 impl Chessboard {
+    pub fn clone_board(&self) -> board::Board {
+        self.inner_board.clone()
+    }
+
     /// Executes a move on the board. If the move is not legal, meaning:
     /// - it's incorrect for the type of piece which is being moved
     /// - the color of the piece is not correct for that turn
@@ -534,6 +458,7 @@ impl Chessboard {
     ///
     fn is_move_legal(&mut self, m: &moves::UCIMove) -> bool {
         let own_color = self.context.get_color_to_play();
+        let board_copy = self.clone_board();
         match m {
             moves::UCIMove::Regular { m: mv } => {
                 self.handle_regular_move(mv);
@@ -566,7 +491,8 @@ impl Chessboard {
                                 break;
                             }
                         }
-                        self.undo_last_move();
+
+                        self.undo_last_move(&board_copy);
                         // if any square on the castling path is attacked,
                         // then the entire castling move is illegal
                         // NOTE: this returns early, since there is no need to call
@@ -585,8 +511,24 @@ impl Chessboard {
         }
 
         let legal = !self.is_king_in_check(own_color);
-        self.undo_last_move();
+        self.undo_last_move(&board_copy);
         legal
+    }
+
+    /// Restores the previous [`context::Context`] and sets the board inner state
+    /// to the state of the [`board::Board`] given as the argument.
+    ///
+    /// # Panics
+    /// Panics if the history of moves that have been played on the board is empty.
+    pub fn undo_last_move(&mut self, board_copy: &board::Board) {
+        self.inner_board = *board_copy;
+        let last_ctx = match self.history.pop().unwrap() {
+            moves::TakenMove::PieceMove { m: _, captured_piece: _, ctx } => ctx,
+            moves::TakenMove::Promotion { m: _, captured_piece: _, ctx } => ctx,
+            moves::TakenMove::EnPassant { m: _, ctx } => ctx,
+            moves::TakenMove::Castling { s: _, ctx } => ctx,
+        };
+        self.context = last_ctx;
     }
 
     /// Checks if the given piece and move of that piece describe castling. If they do, it returns
@@ -927,141 +869,6 @@ impl Chessboard {
             ctx: saved_context,
         });
         was_capturing
-    }
-
-    /// Undoes the last legal or pseudo-legal move and restores the context of
-    /// the board, so that castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there are no elements in the chessboard move history or
-    /// the board state (like piece position) does not match the expected board state.
-    ///
-    fn undo_last_move(&mut self) {
-        let last_move = self.history.pop().unwrap();
-
-        match last_move {
-            moves::TakenMove::PieceMove {
-                m,
-                captured_piece,
-                ctx,
-            } => {
-                self.undo_piece_move(&m, captured_piece, &ctx);
-            }
-            moves::TakenMove::Promotion {
-                m,
-                captured_piece,
-                ctx,
-            } => {
-                self.undo_promotion(&m, captured_piece, &ctx);
-            }
-            moves::TakenMove::EnPassant { m, ctx } => self.undo_enpassant(&m, &ctx),
-            moves::TakenMove::Castling { s, ctx } => {
-                self.undo_castling(s, &ctx);
-            }
-        }
-        self.end_result = None
-    }
-
-    /// Undoes a move that's NOT castling, en passant or pawn promotion, then restores the
-    /// context of the board, so that castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_piece_move(
-        &mut self,
-        m: &moves::Move,
-        captured_piece: Option<piece::Piece>,
-        ctx: &context::Context,
-    ) {
-        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-        self.inner_board.place_piece(m.get_start(), &removed_piece);
-        // if the move was capturing, put the captured piece back on the board
-        if let Some(captured_piece) = captured_piece {
-            self.inner_board
-                .place_piece(m.get_target(), &captured_piece);
-        }
-        self.context = *ctx;
-    }
-
-    /// Undoes a pawn promotion move and restores the context of the board, so that
-    /// castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_promotion(
-        &mut self,
-        m: &moves::Move,
-        captured_piece: Option<piece::Piece>,
-        ctx: &context::Context,
-    ) {
-        // removed piece was the promoted piece, so it dissappears from the board
-        // completely
-        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-        let pawn = piece::Piece::new(piece::Kind::Pawn, removed_piece.get_color());
-        self.inner_board.place_piece(m.get_start(), &pawn);
-        // if the promotion move was capturing, put the captured piece back on the board
-        if let Some(captured_piece) = captured_piece {
-            self.inner_board
-                .place_piece(m.get_target(), &captured_piece);
-        }
-        self.context = *ctx;
-    }
-
-    /// Undoes an en passant capture and restores the context of the board, so that castling
-    /// rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_enpassant(&mut self, m: &moves::Move, ctx: &context::Context) {
-        let removed_pawn = self.inner_board.remove_piece(m.get_target()).unwrap();
-        self.inner_board.place_piece(m.get_start(), &removed_pawn);
-        // restore the enemy pawn
-        let captured_pawn_sq =
-            square::Square::new(m.get_start().get_rank(), m.get_target().get_file());
-        let captured_pawn_color = match removed_pawn.get_color() {
-            piece::Color::White => piece::Color::Black,
-            piece::Color::Black => piece::Color::White,
-        };
-        let pawn_to_restore = piece::Piece::new(piece::Kind::Pawn, captured_pawn_color);
-        self.inner_board
-            .place_piece(captured_pawn_sq, &pawn_to_restore);
-        self.context = *ctx;
-    }
-
-    /// Undoes castling and restores the context of the board, so that castling rights or
-    /// move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if any of the squares which it expects to be taken are empty.
-    /// Kingside/queenside castling always ends with the king and rook on certain squares,
-    /// so when these squares are unexpectedly empty, a panic occurs.
-    #[inline(always)]
-    fn undo_castling(&mut self, s: context::Side, ctx: &context::Context) {
-        let color_castled = ctx.get_color_to_play();
-
-        let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
-            match (color_castled, s) {
-                (piece::Color::White, context::Side::Queenside) => WHITE_QSIDE_CASTLING_INFO,
-                (piece::Color::White, context::Side::Kingside) => WHITE_KSIDE_CASTLING_INFO,
-                (piece::Color::Black, context::Side::Queenside) => BLACK_QSIDE_CASTLING_INFO,
-                (piece::Color::Black, context::Side::Kingside) => BLACK_KSIDE_CASTLING_INFO,
-            };
-
-        // swap the king and the rook
-        let king_piece = self.inner_board.remove_piece(king_start_square).unwrap();
-        let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
-        self.inner_board
-            .place_piece(king_target_square, &king_piece);
-        self.inner_board
-            .place_piece(rook_target_square, &rook_piece);
-
-        self.context = *ctx;
     }
 
     /// Returns [`true`] if the king is in check. Currently not the fastest implementation
@@ -1432,6 +1239,8 @@ mod perft {
         let all_initial_moves = board.iter_legal_moves();
         let mut leaf_counters: HashMap<moves::UCIMove, std::cell::RefCell<usize>> = HashMap::new();
 
+        let board_copy = board.clone_board();
+
         for initial_move in all_initial_moves {
             // when counting nodes, the first move is the key of the node which is then propagated
             // further, until a leaf node is reached, when the counter is incremented by 1
@@ -1459,21 +1268,21 @@ mod perft {
                     // start from depth 2, because depth 1 has been explored by the execute_move
                     // above
                     perft_count_nodes(board, 2, depth_max, results, &mut leaf_counter);
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                 }
                 MoveResult::Checkmate { winner: _, info } => {
                     perft_update_results(result, info);
                     result.checkmates += 1;
                     // checkmate on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
                 MoveResult::Draw { stalemate: _, info } => {
                     perft_update_results(result, info);
                     // draw on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
             }
@@ -1501,6 +1310,8 @@ mod perft {
             return;
         }
 
+        let board_copy = board.clone_board();
+
         let all_legal_moves = board.iter_legal_moves();
         for uci_move in all_legal_moves {
             let game_result = board.execute_move(&uci_move).unwrap();
@@ -1518,21 +1329,21 @@ mod perft {
                     perft_update_results(result, info);
                     // game is not over yet, keep playing
                     perft_count_nodes(board, depth + 1, depth_max, results, leaf_counter);
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                 }
                 MoveResult::Checkmate { winner: _, info } => {
                     perft_update_results(result, info);
                     result.checkmates += 1;
                     // checkmate on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
                 MoveResult::Draw { stalemate: _, info } => {
                     perft_update_results(result, info);
                     // draw on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
             }
