@@ -92,8 +92,10 @@ impl From<u64> for Bitboard {
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
+    
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise AND with the other bitboard's bits.
+    #[inline]
     fn bitand(self, rhs: Bitboard) -> Self::Output {
         Bitboard::from(self.get_bits() & rhs.get_bits())
     }
@@ -103,6 +105,7 @@ impl BitOr for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise OR with the other bitboard's bits.
+    #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
     }
@@ -111,6 +114,7 @@ impl BitOr for Bitboard {
 impl Shl<u8> for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits shifted left.
+    #[inline]
     fn shl(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() << rhs)
     }
@@ -119,6 +123,7 @@ impl Shl<u8> for Bitboard {
 impl Shr<u8> for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits shifted right.
+    #[inline]
     fn shr(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() >> rhs)
     }
@@ -127,6 +132,7 @@ impl Shr<u8> for Bitboard {
 impl Not for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits negated.
+    #[inline]
     fn not(self) -> Self::Output {
         Bitboard::from(!self.get_bits())
     }
@@ -136,6 +142,7 @@ impl BitXor for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise XOR with the other bitboard's bits.
+    #[inline]
     fn bitxor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() ^ rhs.get_bits())
     }
