@@ -660,6 +660,7 @@ impl Chessboard {
     /// # Panics
     /// This method will panic if the given move is incorrect for the given board state,
     /// and e.g. wants to move a piece from a square that's not occupied.
+    #[inline(always)]
     fn handle_regular_move(&mut self, m: &moves::Move) -> (bool, bool, bool) {
         let piece = self.inner_board.get_piece(m.get_start()).unwrap();
 
@@ -856,6 +857,7 @@ impl Chessboard {
     /// # Panics
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
+    #[inline(always)]
     fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) -> bool {
         let saved_context = self.context.clone();
 
