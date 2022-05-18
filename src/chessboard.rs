@@ -80,8 +80,6 @@ const BLACK_KSIDE_ROOK_START: square::Square =
 pub struct MoveIterIter {
     color_to_play: piece::Color,
     own_pieces: bitboard::SquareIter,
-    white_taken: bitboard::Bitboard,
-    black_taken: bitboard::Bitboard,
     inner_board: board::Board,
     context: context::Context,
 }
@@ -92,8 +90,6 @@ impl MoveIterIter {
         Self {
             color_to_play,
             own_pieces: inner_board.get_squares_taken(color_to_play).iter(),
-            white_taken: *inner_board.get_squares_taken(piece::Color::White),
-            black_taken: *inner_board.get_squares_taken(piece::Color::Black),
             inner_board,
             context,
         }
@@ -112,8 +108,7 @@ impl Iterator for MoveIterIter {
                 .get_kind();
 
             let color_to_play = self.color_to_play;
-            let white = self.white_taken;
-            let black = self.black_taken;
+            let (white, black) = self.inner_board.get_squares_taken_pair();
             let context = self.context;
 
             let move_iter = match piece_kind {
