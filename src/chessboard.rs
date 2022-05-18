@@ -255,7 +255,9 @@ impl Clone for Chessboard {
 }
 
 impl Chessboard {
-    pub fn clone_board(&self) -> board::Board {
+
+    /// Clones the [`board::Board`].
+    fn clone_board(&self) -> board::Board {
         self.inner_board.clone()
     }
 
@@ -520,7 +522,7 @@ impl Chessboard {
     ///
     /// # Panics
     /// Panics if the history of moves that have been played on the board is empty.
-    pub fn undo_last_move(&mut self, board_copy: &board::Board) {
+    fn undo_last_move(&mut self, board_copy: &board::Board) {
         self.inner_board = *board_copy;
         let last_ctx = match self.history.pop().unwrap() {
             moves::TakenMove::PieceMove { m: _, captured_piece: _, ctx } => ctx,
