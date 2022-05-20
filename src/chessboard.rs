@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::bitboard;
 use crate::board;
 use crate::context;
 use crate::movegen;
@@ -65,85 +66,128 @@ const WHITE_KSIDE_ROOK_START: square::Square =
 const BLACK_KSIDE_ROOK_START: square::Square =
     square::Square::new(square::Rank::R8, square::File::H);
 
-/// Contains info about squares which are used during undoing of white kingside castling.
+/// Iterator over [`movegen::MoveIter`] iterators. There is a single [`movegen::MoveIter`] for
+/// every single square that's occupied by the player who is about to make a move.
 ///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const WHITE_KSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R1, square::File::F),
-    square::Square::new(square::Rank::R1, square::File::H),
-    square::Square::new(square::Rank::R1, square::File::G),
-    square::Square::new(square::Rank::R1, square::File::E),
-);
+/// # Example
+/// If the board has a default setup, and white is about to play, `MoveIterIter` will contain
+/// 20 iterators (one for every white piece on the board), and each [`movegen::MoveIter`]
+/// will give out moves of a single piece.
+///
+/// This iterator only calls movegen functions when `next()` is called, which means that
+/// the search for pseudo-legal moves of a particular piece only happens when it's necessary.
+#[derive(Clone, Copy)]
+pub struct MoveIterIter {
+    color_to_play: piece::Color,
+    own_pieces: bitboard::SquareIter,
+    inner_board: board::Board,
+    context: context::Context,
+}
 
-/// Contains info about squares which are used during undoing of black kingside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const BLACK_KSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R8, square::File::F),
-    square::Square::new(square::Rank::R8, square::File::H),
-    square::Square::new(square::Rank::R8, square::File::G),
-    square::Square::new(square::Rank::R8, square::File::E),
-);
+impl MoveIterIter {
+    pub fn new(inner_board: board::Board, context: context::Context) -> Self {
+        let color_to_play = context.get_color_to_play();
+        Self {
+            color_to_play,
+            own_pieces: inner_board.get_squares_taken(color_to_play).iter(),
+            inner_board,
+            context,
+        }
+    }
+}
 
-/// Contains info about squares which are used during undoing of white queenside castling.
-///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const WHITE_QSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R1, square::File::D),
-    square::Square::new(square::Rank::R1, square::File::A),
-    square::Square::new(square::Rank::R1, square::File::C),
-    square::Square::new(square::Rank::R1, square::File::E),
-);
+impl Iterator for MoveIterIter {
+    type Item = movegen::MoveIter;
 
-/// Contains info about squares which are used during undoing of black queenside castling.
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(occupied_square) = self.own_pieces.next() {
+            let piece_kind = self
+                .inner_board
+                .get_piece(occupied_square)
+                .unwrap()
+                .get_kind();
+
+            let color_to_play = self.color_to_play;
+            let (white, black) = self.inner_board.get_squares_taken_pair();
+            let context = self.context;
+
+            let move_iter = match piece_kind {
+                piece::Kind::Pawn => {
+                    movegen::find_pawn_moves(occupied_square, color_to_play, white, black, &context)
+                }
+                piece::Kind::Bishop => {
+                    movegen::find_bishop_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Rook => {
+                    movegen::find_rook_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Knight => {
+                    movegen::find_knight_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::Queen => {
+                    movegen::find_queen_moves(occupied_square, color_to_play, white, black)
+                }
+                piece::Kind::King => {
+                    movegen::find_king_moves(occupied_square, color_to_play, white, black, &context)
+                }
+            };
+            Some(move_iter)
+        } else {
+            None
+        }
+    }
+}
+
+/// Iterator over legal moves of the player that is currently making a move.
 ///
-/// Order of elements: (
-/// rook_start_square,
-/// rook_target_square,
-/// king_start_square,
-/// king_target_square
-/// )
-const BLACK_QSIDE_CASTLING_INFO: (
-    square::Square,
-    square::Square,
-    square::Square,
-    square::Square,
-) = (
-    square::Square::new(square::Rank::R8, square::File::D),
-    square::Square::new(square::Rank::R8, square::File::A),
-    square::Square::new(square::Rank::R8, square::File::C),
-    square::Square::new(square::Rank::R8, square::File::E),
-);
+/// It iterates over [`MoveIterIter`], which gives out iterators of pseudo-legal moves.
+/// It returns items as long as there are pseudo-legal moves that are verified as legal
+/// by the [`Self::is_move_legal`] method.
+pub struct LegalMovesIter {
+    iterators: MoveIterIter,
+    current_iter: Option<movegen::MoveIter>,
+    board: Chessboard,
+}
+
+impl LegalMovesIter {
+    pub fn new(mut iterators: MoveIterIter, board: Chessboard) -> Self {
+        let current_iter = iterators.next();
+        Self {
+            iterators,
+            current_iter,
+            board,
+        }
+    }
+}
+
+impl Iterator for LegalMovesIter {
+    type Item = moves::UCIMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match &mut self.current_iter {
+                Some(iter) => match iter.next() {
+                    Some(mv) => {
+                        if self.board.is_move_legal(&mv) {
+                            return Some(mv);
+                        }
+                    }
+                    None => {
+                        self.current_iter = self.iterators.next();
+                        continue;
+                    }
+                },
+                None => {
+                    self.current_iter = self.iterators.next();
+                    // two None in a row mean that there is no more moves
+                    if self.current_iter.is_none() {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Holds information about a move that's been executed on the board.
 ///
@@ -192,7 +236,213 @@ pub struct Chessboard {
     end_result: Option<MoveResult>,
 }
 
+impl Clone for Chessboard {
+    /// Returns a shallow copy of [`Chessboard`] that does not preserve the history
+    /// of moves that have been played on it.
+    fn clone(&self) -> Self {
+        Self {
+            inner_board: self.inner_board.clone(),
+            context: self.context.clone(),
+            history: Vec::new(),
+            end_result: self.end_result,
+        }
+    }
+}
+
 impl Chessboard {
+    /// Clones the [`board::Board`].
+    fn clone_board(&self) -> board::Board {
+        self.inner_board.clone()
+    }
+
+    /// Updates the chessboard context after making a move.
+    ///
+    /// # Updates
+    ///
+    /// ## Color to play
+    /// After making a move, context's color should be flipped, so that it always
+    /// shows who is making the next move.
+    ///
+    /// ## Halfmove counter
+    /// Updates of this counter are not implemented yet.
+    ///
+    /// ## Fullmove counter
+    /// Fullmove counter should always be incremented after every move made by the
+    /// player with black pieces.
+    ///
+    /// ## Castling rights
+    /// Remove some (or all) castling rights of a player if:
+    /// - the player castled
+    /// - player's rook got captured on it's initial square
+    /// - player's king moved from its initial square
+    /// - player's rook moved from its initial square
+    ///
+    /// ## Enpassant target
+    /// Set enpassant target if player's pawn moved two squares forward from its initial
+    /// square. Any other move does not set the enpassant target.
+    ///
+    /// # Panics
+    /// This method panics if chessboard's move history is empty.
+    /// Apart from that,
+    /// panics can occur if the method expects a piece on a certain square, but the
+    /// square is actually empty. This can only happen if there are discrepancies between
+    /// the move history and the actual state of the board, therefore shouldn't happen
+    /// unless some invariant of the board is broken.
+    fn update_context(&mut self) {
+        // flip the color (which might also increment the fullmove counter)
+        self.context.flip_color_to_play();
+
+        let last_move = self.history.last().unwrap();
+
+        // disable castling if rook captured, and rook can be captured only by a piece
+        // or a pawn that promotes
+        let capture_info = match last_move {
+            moves::TakenMove::PieceMove {
+                m,
+                captured_piece,
+                ctx: _,
+            } => Some((m, captured_piece)),
+            moves::TakenMove::Promotion {
+                m,
+                captured_piece,
+                ctx: _,
+            } => Some((m, captured_piece)),
+            _ => None,
+        };
+        if let Some((m, captured_piece)) = capture_info {
+            if let Some(captured_piece) = captured_piece {
+                let captured_square = m.get_target();
+
+                if captured_piece.get_kind() == piece::Kind::Rook {
+                    let side = match (captured_piece.get_color(), captured_square) {
+                        // check if the captured square is a square where rooks of that color start
+                        (piece::Color::White, WHITE_KSIDE_ROOK_START) => {
+                            Some(context::Side::Kingside)
+                        }
+                        (piece::Color::White, WHITE_QSIDE_ROOK_START) => {
+                            Some(context::Side::Queenside)
+                        }
+                        (piece::Color::Black, BLACK_KSIDE_ROOK_START) => {
+                            Some(context::Side::Kingside)
+                        }
+                        (piece::Color::Black, BLACK_QSIDE_ROOK_START) => {
+                            Some(context::Side::Queenside)
+                        }
+                        _ => None,
+                    };
+                    if let Some(side) = side {
+                        self.context
+                            .disable_castling(captured_piece.get_color(), side);
+                    }
+                }
+            }
+        }
+
+        // set enpassant if a pawn moved two squares from its initial square
+        if let moves::TakenMove::PieceMove {
+            m,
+            captured_piece,
+            ctx: _,
+        } = last_move
+        {
+            // move that should set enpassant is noncapturing, so if the last move
+            // was a capture, set enpassant to None
+            if captured_piece.is_none() {
+                let target_square = m.get_target();
+                // if unwrap panics, it might mean that the last move's appeared in history,
+                // but not actually on the board, which should never happen if invariants
+                // are not broken
+                let piece = self.inner_board.get_piece(target_square).unwrap();
+                if piece.get_kind() == piece::Kind::Pawn {
+                    let (start_rank, target_rank, color) = (
+                        m.get_start().get_rank(),
+                        m.get_target().get_rank(),
+                        piece.get_color(),
+                    );
+
+                    let enpassant_target = match (start_rank, target_rank, color) {
+                        (square::Rank::R2, square::Rank::R4, piece::Color::White) => Some(
+                            square::Square::new(square::Rank::R3, m.get_target().get_file()),
+                        ),
+                        (square::Rank::R7, square::Rank::R5, piece::Color::Black) => Some(
+                            square::Square::new(square::Rank::R6, m.get_target().get_file()),
+                        ),
+                        _ => None,
+                    };
+                    self.context.set_enpassant(enpassant_target);
+                } else {
+                    self.context.set_enpassant(None);
+                }
+            } else {
+                self.context.set_enpassant(None);
+            }
+        } else {
+            self.context.set_enpassant(None);
+        }
+
+        // if last move was castling, the right to castle of the player who castled
+        // should be revoked, as it no longer applies
+        if let moves::TakenMove::Castling { s: _, ctx } = last_move {
+            let castle_color = ctx.get_color_to_play();
+            self.context
+                .disable_castling(castle_color, context::Side::Kingside);
+            self.context
+                .disable_castling(castle_color, context::Side::Queenside);
+        }
+
+        // if last move was a rook move or a king move, check if they should disable
+        // castling rights of the player who moved them
+        if let moves::TakenMove::PieceMove {
+            m,
+            captured_piece: _,
+            ctx: _,
+        } = last_move
+        {
+            let (start_square, target_square) = (m.get_start(), m.get_target());
+            // if unwrap panics, it might mean that the last move's appeared in history,
+            // but not actually on the board, which should never happen if invariants
+            // are not broken
+            let piece = self.inner_board.get_piece(target_square).unwrap();
+            let color = piece.get_color();
+            match piece.get_kind() {
+                // moving the king from its initial square removes both castling rights
+                piece::Kind::King => match (color, start_square) {
+                    (piece::Color::White, WHITE_KING_START) => {
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Kingside);
+                        self.context
+                            .disable_castling(piece::Color::White, context::Side::Queenside);
+                    }
+                    (piece::Color::Black, BLACK_KING_START) => {
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Kingside);
+                        self.context
+                            .disable_castling(piece::Color::Black, context::Side::Queenside);
+                    }
+                    _ => (),
+                },
+                // moving the rook from its initial square removes the right to castle
+                // on the side of that rook
+                piece::Kind::Rook => match (color, start_square) {
+                    (piece::Color::White, WHITE_QSIDE_ROOK_START) => self
+                        .context
+                        .disable_castling(piece::Color::White, context::Side::Queenside),
+                    (piece::Color::White, WHITE_KSIDE_ROOK_START) => self
+                        .context
+                        .disable_castling(piece::Color::White, context::Side::Kingside),
+                    (piece::Color::Black, BLACK_QSIDE_ROOK_START) => self
+                        .context
+                        .disable_castling(piece::Color::Black, context::Side::Queenside),
+                    (piece::Color::Black, BLACK_KSIDE_ROOK_START) => self
+                        .context
+                        .disable_castling(piece::Color::Black, context::Side::Kingside),
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+    }
+
     /// Executes a move on the board. If the move is not legal, meaning:
     /// - it's incorrect for the type of piece which is being moved
     /// - the color of the piece is not correct for that turn
@@ -206,10 +456,9 @@ impl Chessboard {
     /// information about what happend in that move (if there was a capture, en passant,
     /// castle, promotion, check). This information greatly improves the debugging experience.
     ///
-    /// NOTE: this method checks moves for their legality only in the release mode.
-    /// While in test mode, these checks are disabled, because all moves that are
-    /// given to this method to execute are taken from legal move generating functions,
-    /// so move legality checks are omitted for performance reasons.
+    /// NOTE: this method only checks validity of received move if it's ran in the release mode.
+    /// During testing, all tests generate and use legal moves, which means that checking validity
+    /// of every move which is guaranteed to be valid only slows down tests.
     pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, &'static str> {
         let captured_piece;
         let mut took_enpassant = false;
@@ -226,13 +475,15 @@ impl Chessboard {
             }
         }
 
-        // don't compile this in test mode, because during tests legality of moves
-        // is enforced by only executing this method with moves that have been generated
-        // by movegen functions for the current state of the board
+        // don't compile this check in test mode, because tests only execute moves that
+        // had previously been checked for their legality, therefore this check is
+        // unnecessary, as it does never return an error
         #[cfg(not(test))]
         {
-            let legal_moves = self.find_all_legal_moves();
-            if !legal_moves.contains(&m) {
+            // return error if the given move is a move that cannot even
+            // appear on the board (for any disqualifying reason described in can_be_played
+            // docs)
+            if !self.can_be_played(m) {
                 return Err("illegal move");
             }
         }
@@ -250,16 +501,13 @@ impl Chessboard {
             }
         }
 
-        self.context.flip_color_to_play();
+        self.update_context();
 
         // here it's the color of the next player which is yet to move
         let color_to_play = self.context.get_color_to_play();
 
         // check if the executed move has resulted in a checkmate
-        // TODO: instead of calling find_all_legal_moves, create some function that
-        // simply checks whether there is at least a single legal move, because
-        // it's unnecessary to look for all of them and waste time
-        let num_next_player_moves = self.find_all_legal_moves().iter().count();
+        let next_player_has_no_moves = self.iter_legal_moves().next().is_none();
         let is_king_in_check = self.is_king_in_check(color_to_play);
 
         let info = MoveInfo {
@@ -270,7 +518,7 @@ impl Chessboard {
             checked_opponent: is_king_in_check,
         };
 
-        if num_next_player_moves == 0 {
+        if next_player_has_no_moves {
             if is_king_in_check {
                 // the winner is the previous color
                 let winner = match color_to_play {
@@ -300,6 +548,66 @@ impl Chessboard {
                 // - there is not enough material to checkmate
                 Ok(MoveResult::Continues { info })
             }
+        }
+    }
+
+    /// Returns true if the given move is a move that can appear on the board with its current
+    /// state.
+    ///
+    /// This means, that the move:
+    /// - has be start on a square that contains a piece
+    /// - has to be an actual pseudo-legal move that's currently possible on the board for
+    ///     the kind of piece that occupies that start square
+    /// - has to be a pseudo-legal move that can be verified as legal by `is_move_legal`
+    pub fn can_be_played(&mut self, m: &moves::UCIMove) -> bool {
+        let start = match *m {
+            moves::UCIMove::Regular { m } => m.get_start(),
+            moves::UCIMove::Promotion { m, .. } => m.get_start(),
+        };
+
+        match self.inner_board.get_piece(start) {
+            // there is a piece on the start square of the move
+            Some(piece) => {
+                let kind = piece.get_kind();
+                let color_to_play = self.context.get_color_to_play();
+                let (white, black) = self.inner_board.get_squares_taken_pair();
+                let context = self.context;
+
+                let pseudolegal_iter = match kind {
+                    piece::Kind::Pawn => {
+                        movegen::find_pawn_moves(start, color_to_play, white, black, &context)
+                    }
+                    piece::Kind::Bishop => {
+                        movegen::find_bishop_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Rook => {
+                        movegen::find_rook_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Knight => {
+                        movegen::find_knight_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::Queen => {
+                        movegen::find_queen_moves(start, color_to_play, white, black)
+                    }
+                    piece::Kind::King => {
+                        movegen::find_king_moves(start, color_to_play, white, black, &context)
+                    }
+                };
+
+                // iterate over pseudolegal moves to find the same move as in the argument
+                // of this method
+                for pseudolegal_mv in pseudolegal_iter {
+                    if pseudolegal_mv == *m {
+                        // if there is such a pseudo-legal move, check if it's legal
+                        return self.is_move_legal(&pseudolegal_mv);
+                    }
+                }
+                // didn't find the move while iterating, therefore the move is not even
+                // pseudo-legal, so it definitely cannot be played
+                false
+            }
+            // no piece on the start square, therefore no move
+            None => false,
         }
     }
 
@@ -334,6 +642,7 @@ impl Chessboard {
     ///
     fn is_move_legal(&mut self, m: &moves::UCIMove) -> bool {
         let own_color = self.context.get_color_to_play();
+        let board_copy = self.clone_board();
         match m {
             moves::UCIMove::Regular { m: mv } => {
                 self.handle_regular_move(mv);
@@ -366,7 +675,8 @@ impl Chessboard {
                                 break;
                             }
                         }
-                        self.undo_last_move();
+
+                        self.undo_last_move(&board_copy);
                         // if any square on the castling path is attacked,
                         // then the entire castling move is illegal
                         // NOTE: this returns early, since there is no need to call
@@ -385,8 +695,32 @@ impl Chessboard {
         }
 
         let legal = !self.is_king_in_check(own_color);
-        self.undo_last_move();
+        self.undo_last_move(&board_copy);
         legal
+    }
+
+    /// Restores the previous [`context::Context`] and sets the board inner state
+    /// to the state of the [`board::Board`] given as the argument.
+    ///
+    /// # Panics
+    /// Panics if the history of moves that have been played on the board is empty.
+    fn undo_last_move(&mut self, board_copy: &board::Board) {
+        self.inner_board = *board_copy;
+        let last_ctx = match self.history.pop().unwrap() {
+            moves::TakenMove::PieceMove {
+                m: _,
+                captured_piece: _,
+                ctx,
+            } => ctx,
+            moves::TakenMove::Promotion {
+                m: _,
+                captured_piece: _,
+                ctx,
+            } => ctx,
+            moves::TakenMove::EnPassant { m: _, ctx } => ctx,
+            moves::TakenMove::Castling { s: _, ctx } => ctx,
+        };
+        self.context = last_ctx;
     }
 
     /// Checks if the given piece and move of that piece describe castling. If they do, it returns
@@ -450,63 +784,6 @@ impl Chessboard {
         }
     }
 
-    /// Disables one side of castling if player's rook had been captured on
-    /// it's original square and is no longer there to allow castling.
-    ///
-    /// Should be called after every move that can capture a piece, so that there is no
-    /// possibility of castling flags remaining set when player no longer has a certain rook.
-    fn disable_castling_if_rook_captured(
-        &mut self,
-        captured_piece: &Option<piece::Piece>,
-        captured_square: square::Square,
-    ) {
-        if let Some(captured_piece) = captured_piece {
-            if captured_piece.get_kind() == piece::Kind::Rook {
-                let side = match (captured_piece.get_color(), captured_square) {
-                    // check if the captured square is a square where rooks of that color start
-                    (piece::Color::White, WHITE_KSIDE_ROOK_START) => context::Side::Kingside,
-                    (piece::Color::White, WHITE_QSIDE_ROOK_START) => context::Side::Queenside,
-                    (piece::Color::Black, BLACK_KSIDE_ROOK_START) => context::Side::Kingside,
-                    (piece::Color::Black, BLACK_QSIDE_ROOK_START) => context::Side::Queenside,
-                    _ => return,
-                };
-                self.context
-                    .disable_castling(captured_piece.get_color(), side);
-            }
-        }
-    }
-
-    /// Returns [`square::Square`] with en passant target square if, and only if:
-    /// - the `piece` is a pawn
-    /// - the [`moves::Move`] describes a move forward by two squares from the initial rank
-    ///     of the pawn
-    ///
-    /// If both conditions are satisfied, then the target square (the square behind the moved
-    /// pawn) is wrapped in [`Some`] and returned.
-    /// If any of these two conditions is not satisied, `None` is returned.
-    #[inline(always)]
-    fn should_set_enpassant(piece: &piece::Piece, m: &moves::Move) -> Option<square::Square> {
-        if piece.get_kind() != piece::Kind::Pawn {
-            None
-        } else {
-            let (start_rank, target_rank, color) = (
-                m.get_start().get_rank(),
-                m.get_target().get_rank(),
-                piece.get_color(),
-            );
-
-            match (start_rank, target_rank, color) {
-                (square::Rank::R2, square::Rank::R4, piece::Color::White) => Some(
-                    square::Square::new(square::Rank::R3, m.get_target().get_file()),
-                ),
-                (square::Rank::R7, square::Rank::R5, piece::Color::Black) => Some(
-                    square::Square::new(square::Rank::R6, m.get_target().get_file()),
-                ),
-                _ => None,
-            }
-        }
-    }
-
     /// Handles all legal or pseudo-legal moves that are not pawn promotions.
     /// Returns `(bool, bool, bool)` which represents information about events
     /// that happened during this move: (captured_piece, took_enpassant, castled).
@@ -516,6 +793,7 @@ impl Chessboard {
     /// # Panics
     /// This method will panic if the given move is incorrect for the given board state,
     /// and e.g. wants to move a piece from a square that's not occupied.
+    #[inline(always)]
     fn handle_regular_move(&mut self, m: &moves::Move) -> (bool, bool, bool) {
         let piece = self.inner_board.get_piece(m.get_start()).unwrap();
 
@@ -566,7 +844,6 @@ impl Chessboard {
             m: *m,
             ctx: saved_context,
         });
-        self.context.set_enpassant(None);
     }
 
     /// Handles legal or pseudo-legal castling.
@@ -618,17 +895,10 @@ impl Chessboard {
         self.inner_board
             .place_piece(rook_target_square, &rook_piece);
         self.inner_board.place_piece(king_target, &king_piece);
-        // if castling appears on the board, castling rights no longer apply
-        self.context
-            .disable_castling(castling_side_color, context::Side::Kingside);
-        self.context
-            .disable_castling(castling_side_color, context::Side::Queenside);
-
         self.history.push(moves::TakenMove::Castling {
             s: side,
             ctx: saved_context,
         });
-        self.context.set_enpassant(None);
     }
 
     /// Handles all legal or pseudo-legal moves that are NOT castling,
@@ -650,62 +920,13 @@ impl Chessboard {
         let (start, target) = (m.get_start(), m.get_target());
         let piece = self.inner_board.remove_piece(start).unwrap();
 
-        // figure out whether the current move changes the state of castling flags
-        match piece.get_kind() {
-            piece::Kind::King => {
-                if piece.get_color() == piece::Color::White {
-                    if start == WHITE_KING_START {
-                        // white king moving from e1 disables both sides of castling
-                        self.context
-                            .disable_castling(piece::Color::White, context::Side::Kingside);
-                        self.context
-                            .disable_castling(piece::Color::White, context::Side::Queenside);
-                    }
-                } else {
-                    if start == BLACK_KING_START {
-                        // black king moving from e8 disables both sides of castling
-                        self.context
-                            .disable_castling(piece::Color::Black, context::Side::Kingside);
-                        self.context
-                            .disable_castling(piece::Color::Black, context::Side::Queenside);
-                    }
-                }
-            }
-            piece::Kind::Rook => {
-                if piece.get_color() == piece::Color::White {
-                    if start == WHITE_QSIDE_ROOK_START {
-                        self.context
-                            .disable_castling(piece::Color::White, context::Side::Queenside);
-                    } else if start == WHITE_KSIDE_ROOK_START {
-                        self.context
-                            .disable_castling(piece::Color::White, context::Side::Kingside);
-                    }
-                } else {
-                    if start == BLACK_QSIDE_ROOK_START {
-                        self.context
-                            .disable_castling(piece::Color::Black, context::Side::Queenside);
-                    } else if start == BLACK_KSIDE_ROOK_START {
-                        self.context
-                            .disable_castling(piece::Color::Black, context::Side::Kingside);
-                    }
-                }
-            }
-            _ => (),
-        }
-
         let captured_piece = self.inner_board.place_piece(target, &piece);
-        self.disable_castling_if_rook_captured(&captured_piece, target);
         let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::PieceMove {
             m: *m,
             captured_piece,
             ctx: saved_context,
         });
-
-        // TODO: make should_set_enpassant assume that the move is a pawn move,
-        // and call it within a piece::Kind::Pawn arm of the match above
-        let enpassant_target = Chessboard::should_set_enpassant(&piece, m);
-        self.context.set_enpassant(enpassant_target);
         was_capturing
     }
 
@@ -714,6 +935,7 @@ impl Chessboard {
     /// # Panics
     /// This method panics if there is no piece on the start square of the
     /// `moves::Move`.
+    #[inline(always)]
     fn handle_promotion_move(&mut self, m: &moves::Move, k: piece::Kind) -> bool {
         let saved_context = self.context.clone();
 
@@ -721,7 +943,6 @@ impl Chessboard {
         let promoted_pawn = self.inner_board.remove_piece(start).unwrap();
         let promotion_goal = piece::Piece::new(k, promoted_pawn.get_color());
         let captured_piece = self.inner_board.place_piece(target, &promotion_goal);
-        self.disable_castling_if_rook_captured(&captured_piece, target);
         let was_capturing = captured_piece.is_some();
         self.history.push(moves::TakenMove::Promotion {
             m: *m,
@@ -729,141 +950,6 @@ impl Chessboard {
             ctx: saved_context,
         });
         was_capturing
-    }
-
-    /// Undoes the last legal or pseudo-legal move and restores the context of
-    /// the board, so that castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there are no elements in the chessboard move history or
-    /// the board state (like piece position) does not match the expected board state.
-    ///
-    fn undo_last_move(&mut self) {
-        let last_move = self.history.pop().unwrap();
-
-        match last_move {
-            moves::TakenMove::PieceMove {
-                m,
-                captured_piece,
-                ctx,
-            } => {
-                self.undo_piece_move(&m, captured_piece, &ctx);
-            }
-            moves::TakenMove::Promotion {
-                m,
-                captured_piece,
-                ctx,
-            } => {
-                self.undo_promotion(&m, captured_piece, &ctx);
-            }
-            moves::TakenMove::EnPassant { m, ctx } => self.undo_enpassant(&m, &ctx),
-            moves::TakenMove::Castling { s, ctx } => {
-                self.undo_castling(s, &ctx);
-            }
-        }
-        self.end_result = None
-    }
-
-    /// Undoes a move that's NOT castling, en passant or pawn promotion, then restores the
-    /// context of the board, so that castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_piece_move(
-        &mut self,
-        m: &moves::Move,
-        captured_piece: Option<piece::Piece>,
-        ctx: &context::Context,
-    ) {
-        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-        self.inner_board.place_piece(m.get_start(), &removed_piece);
-        // if the move was capturing, put the captured piece back on the board
-        if let Some(captured_piece) = captured_piece {
-            self.inner_board
-                .place_piece(m.get_target(), &captured_piece);
-        }
-        self.context = *ctx;
-    }
-
-    /// Undoes a pawn promotion move and restores the context of the board, so that
-    /// castling rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_promotion(
-        &mut self,
-        m: &moves::Move,
-        captured_piece: Option<piece::Piece>,
-        ctx: &context::Context,
-    ) {
-        // removed piece was the promoted piece, so it dissappears from the board
-        // completely
-        let removed_piece = self.inner_board.remove_piece(m.get_target()).unwrap();
-        let pawn = piece::Piece::new(piece::Kind::Pawn, removed_piece.get_color());
-        self.inner_board.place_piece(m.get_start(), &pawn);
-        // if the promotion move was capturing, put the captured piece back on the board
-        if let Some(captured_piece) = captured_piece {
-            self.inner_board
-                .place_piece(m.get_target(), &captured_piece);
-        }
-        self.context = *ctx;
-    }
-
-    /// Undoes an en passant capture and restores the context of the board, so that castling
-    /// rights or move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if there is no piece on the target square of the `moves::Move`
-    /// that's given as an argument.
-    #[inline(always)]
-    fn undo_enpassant(&mut self, m: &moves::Move, ctx: &context::Context) {
-        let removed_pawn = self.inner_board.remove_piece(m.get_target()).unwrap();
-        self.inner_board.place_piece(m.get_start(), &removed_pawn);
-        // restore the enemy pawn
-        let captured_pawn_sq =
-            square::Square::new(m.get_start().get_rank(), m.get_target().get_file());
-        let captured_pawn_color = match removed_pawn.get_color() {
-            piece::Color::White => piece::Color::Black,
-            piece::Color::Black => piece::Color::White,
-        };
-        let pawn_to_restore = piece::Piece::new(piece::Kind::Pawn, captured_pawn_color);
-        self.inner_board
-            .place_piece(captured_pawn_sq, &pawn_to_restore);
-        self.context = *ctx;
-    }
-
-    /// Undoes castling and restores the context of the board, so that castling rights or
-    /// move counters don't end up broken.
-    ///
-    /// # Panics
-    /// This method panics if any of the squares which it expects to be taken are empty.
-    /// Kingside/queenside castling always ends with the king and rook on certain squares,
-    /// so when these squares are unexpectedly empty, a panic occurs.
-    #[inline(always)]
-    fn undo_castling(&mut self, s: context::Side, ctx: &context::Context) {
-        let color_castled = ctx.get_color_to_play();
-
-        let (rook_start_square, rook_target_square, king_start_square, king_target_square) =
-            match (color_castled, s) {
-                (piece::Color::White, context::Side::Queenside) => WHITE_QSIDE_CASTLING_INFO,
-                (piece::Color::White, context::Side::Kingside) => WHITE_KSIDE_CASTLING_INFO,
-                (piece::Color::Black, context::Side::Queenside) => BLACK_QSIDE_CASTLING_INFO,
-                (piece::Color::Black, context::Side::Kingside) => BLACK_KSIDE_CASTLING_INFO,
-            };
-
-        // swap the king and the rook
-        let king_piece = self.inner_board.remove_piece(king_start_square).unwrap();
-        let rook_piece = self.inner_board.remove_piece(rook_start_square).unwrap();
-        self.inner_board
-            .place_piece(king_target_square, &king_piece);
-        self.inner_board
-            .place_piece(rook_target_square, &rook_piece);
-
-        self.context = *ctx;
     }
 
     /// Returns [`true`] if the king is in check. Currently not the fastest implementation
@@ -875,49 +961,11 @@ impl Chessboard {
         movegen::is_king_in_check(king_color, &self.inner_board)
     }
 
-    /// Finds all pseudo-legal moves for all pieces of the given color.
-    fn find_all_pseudolegal_moves(&self, color: piece::Color) -> Vec<moves::UCIMove> {
-        let mut all_moves = Vec::new();
-
-        let own_pieces = self.inner_board.get_squares_taken(color);
-        let (white, black) = self.inner_board.get_squares_taken_pair();
-
-        for occupied_square in own_pieces.iter() {
-            let piece_kind = self
-                .inner_board
-                .get_piece(occupied_square)
-                .unwrap()
-                .get_kind();
-            let mut moves = match piece_kind {
-                piece::Kind::Pawn => {
-                    movegen::find_pawn_moves(occupied_square, color, white, black, &self.context)
-                }
-                piece::Kind::Bishop => {
-                    movegen::find_bishop_moves(occupied_square, color, white, black)
-                }
-                piece::Kind::Rook => movegen::find_rook_moves(occupied_square, color, white, black),
-                piece::Kind::Knight => {
-                    movegen::find_knight_moves(occupied_square, color, white, black)
-                }
-                piece::Kind::Queen => {
-                    movegen::find_queen_moves(occupied_square, color, white, black)
-                }
-                piece::Kind::King => {
-                    movegen::find_king_moves(occupied_square, color, white, black, &self.context)
-                }
-            };
-
-            all_moves.append(&mut moves);
-        }
-        all_moves
-    }
-
-    /// Finds all legal moves which can be executed by the current player.
-    pub fn find_all_legal_moves(&mut self) -> Vec<moves::UCIMove> {
-        let color_to_play = self.context.get_color_to_play();
-        let mut moves = self.find_all_pseudolegal_moves(color_to_play);
-        moves.retain(|mv| self.is_move_legal(&mv));
-        moves
+    /// Returns an iterator over legal moves of the player who is
+    /// currently about to make a move.
+    pub fn iter_legal_moves(&mut self) -> LegalMovesIter {
+        let pseudolegal = MoveIterIter::new(self.inner_board, self.context);
+        LegalMovesIter::new(pseudolegal, self.clone())
     }
 }
 
@@ -1073,7 +1121,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&white_castling_move));
         }
@@ -1088,7 +1136,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&black_castling_move));
         }
@@ -1107,7 +1155,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&white_castling_move));
         }
@@ -1123,7 +1171,7 @@ Fullmove: 14
         for fen in fens {
             let mut board = Chessboard::try_from(fen).unwrap();
 
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             // should not contain the move, because castling through an attack is illegal
             assert!(!available_moves.contains(&black_castling_move));
         }
@@ -1135,7 +1183,7 @@ Fullmove: 14
         let rook_h1_attacked = "rnb1kbnr/ppp3pp/8/3q4/8/8/PPPPP2P/RNBQK2R w KQkq - 0 1";
         let white_castling_move = moves::UCIMove::try_from("e1g1").unwrap();
         let mut board = Chessboard::try_from(rook_h1_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
+        let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
         // should contain the move, because castling when only the rook is attacked is legal
         assert!(available_moves.contains(&white_castling_move));
 
@@ -1143,7 +1191,7 @@ Fullmove: 14
         let rook_h8_attacked = "rnbqk2r/pppp3p/8/3P4/8/2Q5/PPP1PPPP/R1B1K1NR b KQkq - 0 1";
         let black_castling_move = moves::UCIMove::try_from("e8g8").unwrap();
         let mut board = Chessboard::try_from(rook_h8_attacked).unwrap();
-        let available_moves = board.find_all_legal_moves();
+        let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
         // should contain the move, because castling when only the rook is attacked is legal
         assert!(available_moves.contains(&black_castling_move));
     }
@@ -1160,7 +1208,7 @@ Fullmove: 14
         for fen in fens {
             let white_castling_move = moves::UCIMove::try_from("e1c1").unwrap();
             let mut board = Chessboard::try_from(fen).unwrap();
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             assert!(available_moves.contains(&white_castling_move));
         }
 
@@ -1174,7 +1222,7 @@ Fullmove: 14
         for fen in fens {
             let black_castling_move = moves::UCIMove::try_from("e8c8").unwrap();
             let mut board = Chessboard::try_from(fen).unwrap();
-            let available_moves = board.find_all_legal_moves();
+            let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             assert!(available_moves.contains(&black_castling_move));
         }
     }
@@ -1269,10 +1317,12 @@ mod perft {
     ///
     /// See: https://www.chessprogramming.org/Perft
     fn perft(board: &mut Chessboard, depth_max: u8, results: &mut HashMap<u8, PerftResult>) {
-        let all_initial_moves = board.find_all_legal_moves();
+        let all_initial_moves = board.iter_legal_moves();
         let mut leaf_counters: HashMap<moves::UCIMove, std::cell::RefCell<usize>> = HashMap::new();
 
-        for initial_move in &all_initial_moves {
+        let board_copy = board.clone_board();
+
+        for initial_move in all_initial_moves {
             // when counting nodes, the first move is the key of the node which is then propagated
             // further, until a leaf node is reached, when the counter is incremented by 1
             leaf_counters.insert(initial_move.clone(), std::cell::RefCell::new(0));
@@ -1291,7 +1341,7 @@ mod perft {
             let result = results.entry(1).or_insert(PerftResult::default());
             result.nodes += 1;
 
-            let game_result = board.execute_move(initial_move).unwrap();
+            let game_result = board.execute_move(&initial_move).unwrap();
             match game_result {
                 MoveResult::Continues { info } => {
                     perft_update_results(result, info);
@@ -1299,21 +1349,21 @@ mod perft {
                     // start from depth 2, because depth 1 has been explored by the execute_move
                     // above
                     perft_count_nodes(board, 2, depth_max, results, &mut leaf_counter);
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                 }
                 MoveResult::Checkmate { winner: _, info } => {
                     perft_update_results(result, info);
                     result.checkmates += 1;
                     // checkmate on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
                 MoveResult::Draw { stalemate: _, info } => {
                     perft_update_results(result, info);
                     // draw on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
             }
@@ -1341,9 +1391,11 @@ mod perft {
             return;
         }
 
-        let all_legal_moves = board.find_all_legal_moves();
-        for uci_move in &all_legal_moves {
-            let game_result = board.execute_move(uci_move).unwrap();
+        let board_copy = board.clone_board();
+
+        let all_legal_moves = board.iter_legal_moves();
+        for uci_move in all_legal_moves {
+            let game_result = board.execute_move(&uci_move).unwrap();
 
             let result = results.entry(depth).or_insert(PerftResult::default());
             result.nodes += 1;
@@ -1358,21 +1410,21 @@ mod perft {
                     perft_update_results(result, info);
                     // game is not over yet, keep playing
                     perft_count_nodes(board, depth + 1, depth_max, results, leaf_counter);
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                 }
                 MoveResult::Checkmate { winner: _, info } => {
                     perft_update_results(result, info);
                     result.checkmates += 1;
                     // checkmate on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
                 MoveResult::Draw { stalemate: _, info } => {
                     perft_update_results(result, info);
                     // draw on the board, undo the move and keep searching on the
                     // same depth
-                    board.undo_last_move();
+                    board.undo_last_move(&board_copy);
                     continue;
                 }
             }

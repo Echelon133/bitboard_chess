@@ -6,6 +6,7 @@ use crate::square;
 
 /// Represents the chessboard on a very low level. Only contains methods
 /// that either read or manipulate the state of the board (what pieces are placed where).
+#[derive(Clone, Copy)]
 pub struct Board {
     // Both white_pieces and black_pieces are arrays of 6 elements, with every element
     // representing squares taken by a single piece kind.
@@ -38,6 +39,7 @@ impl Board {
     /// Places a piece on the given [`square::Square`] of the board and returns an
     /// [`Option`] which might contain a [`piece::Piece`] that was previously
     /// on that square. Returns [`None`] it the taken square was empty.
+    #[inline(always)]
     pub fn place_piece(
         &mut self,
         square: square::Square,
@@ -58,6 +60,7 @@ impl Board {
 
     /// Removes a piece from the [`square::Square`] and returns [`Some`]
     /// that contains that piece. If the square was empty, returns [`None`].
+    #[inline(always)]
     pub fn remove_piece(&mut self, square: square::Square) -> Option<piece::Piece> {
         match self.get_piece(square) {
             Some(piece) => {
@@ -78,6 +81,7 @@ impl Board {
     /// Returns [`Some`] that contains the piece that is placed on the
     /// [`square::Square`] given as an argument. If the square is empty, [`None`]
     /// is returned.
+    #[inline(always)]
     pub fn get_piece(&self, square: square::Square) -> Option<piece::Piece> {
         if self.is_square_empty(square) {
             None
@@ -116,6 +120,7 @@ impl Board {
     }
 
     /// Returns [`true`] if the given [`square::Square`] is empty, [`false`] if it's taken.
+    #[inline(always)]
     pub fn is_square_empty(&self, square: square::Square) -> bool {
         // bitwise OR of both bitboards that represent taken squares results
         // in a bitboard that represents all taken squares
@@ -174,8 +179,8 @@ impl Board {
     }
 
     /// Returns a pair of (white_taken, black_taken) bitboards.
-    pub fn get_squares_taken_pair(&self) -> (&bitboard::Bitboard, &bitboard::Bitboard) {
-        (&self.white_taken, &self.black_taken)
+    pub fn get_squares_taken_pair(&self) -> (bitboard::Bitboard, bitboard::Bitboard) {
+        (self.white_taken, self.black_taken)
     }
 }
 

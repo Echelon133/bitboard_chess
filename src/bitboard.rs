@@ -92,8 +92,10 @@ impl From<u64> for Bitboard {
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
+    
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise AND with the other bitboard's bits.
+    #[inline]
     fn bitand(self, rhs: Bitboard) -> Self::Output {
         Bitboard::from(self.get_bits() & rhs.get_bits())
     }
@@ -103,6 +105,7 @@ impl BitOr for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise OR with the other bitboard's bits.
+    #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
     }
@@ -111,6 +114,7 @@ impl BitOr for Bitboard {
 impl Shl<u8> for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits shifted left.
+    #[inline]
     fn shl(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() << rhs)
     }
@@ -119,6 +123,7 @@ impl Shl<u8> for Bitboard {
 impl Shr<u8> for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits shifted right.
+    #[inline]
     fn shr(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() >> rhs)
     }
@@ -127,6 +132,7 @@ impl Shr<u8> for Bitboard {
 impl Not for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits negated.
+    #[inline]
     fn not(self) -> Self::Output {
         Bitboard::from(!self.get_bits())
     }
@@ -136,6 +142,7 @@ impl BitXor for Bitboard {
     type Output = Bitboard;
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise XOR with the other bitboard's bits.
+    #[inline]
     fn bitxor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() ^ rhs.get_bits())
     }
@@ -159,10 +166,9 @@ impl Debug for Bitboard {
 
 /// Iterator which returns [`square::Square`] objects of all bits
 /// that are set on the bitboard.
-///
+#[derive(Clone, Copy)]
 pub struct SquareIter {
     bits: u64,
-    shift: u8,
     size: u8,
 }
 
@@ -171,7 +177,6 @@ impl SquareIter {
     pub fn new(bboard: &Bitboard) -> Self {
         Self {
             bits: bboard.get_bits(),
-            shift: 0,
             size: bboard.count_set(),
         }
     }
@@ -191,19 +196,20 @@ impl Iterator for SquareIter {
         if self.size == 0 {
             None
         } else {
-            loop {
-                // find the next set bit
-                let is_set = ((self.bits >> self.shift) & 0b1) == 1;
-                if is_set {
-                    let square = square::Square::from(self.shift);
-                    self.shift += 1;
-                    self.size -= 1;
-                    break Some(square);
-                } else {
-                    self.shift += 1;
-                }
-            }
+            // find the next set bit
+            let first_set = u64::trailing_zeros(self.bits) as u8;
+            // clear the bit after it's been found
+            self.bits &= !(0b1 << first_set);
+            self.size -= 1;
+            let square = square::Square::from(first_set);
+            Some(square)
         }
+    }
+}
+
+impl ExactSizeIterator for SquareIter {
+    fn len(&self) -> usize {
+        self.size as usize
     }
 }
 
@@ -323,12 +329,6 @@ mod tests {
 
         let empty_debug = format!("{:?}", bitboard);
         assert_eq!(expected_empty, empty_debug);
-
-        //for file in 'a'..='h' {
-        //    let square = format!("{}1", file);
-        //    bitboard.set(square::Square::try_from(square.as_ref()).unwrap());
-        //}
-        //println!("{:?}", bitboard);
     }
 
     #[test]

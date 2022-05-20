@@ -99,7 +99,7 @@ pub struct Piece {
 
 impl Piece {
     /// Creates an immutable piece object from given [`Kind`] and [`Color`] arguments.
-    pub fn new(kind: Kind, color: Color) -> Self {
+    pub const fn new(kind: Kind, color: Color) -> Self {
         Self { kind, color }
     }
 
