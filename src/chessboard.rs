@@ -292,6 +292,11 @@ impl Chessboard {
         // flip the color (which might also increment the fullmove counter)
         self.context.flip_color_to_play();
 
+        // always increment the halfmove counter
+        // if it should have been reset, code below will reset it and
+        // the counter state will be correct anyway
+        self.context.incr_halfmoves();
+
         let last_move = self.history.last().unwrap();
 
         // disable castling if rook captured, and rook can be captured only by a piece
@@ -311,8 +316,10 @@ impl Chessboard {
         };
         if let Some((m, captured_piece)) = capture_info {
             if let Some(captured_piece) = captured_piece {
-                let captured_square = m.get_target();
+                // reset the halfmove counter because of a capture
+                self.context.reset_halfmoves();
 
+                let captured_square = m.get_target();
                 if captured_piece.get_kind() == piece::Kind::Rook {
                     let side = match (captured_piece.get_color(), captured_square) {
                         // check if the captured square is a square where rooks of that color start
@@ -336,6 +343,11 @@ impl Chessboard {
                     }
                 }
             }
+        }
+
+        // enpassant always captures, which should result in reseting the halfmove counter
+        if let moves::TakenMove::EnPassant { m: _, ctx: _ } = last_move {
+            self.context.reset_halfmoves();
         }
 
         // set enpassant if a pawn moved two squares from its initial square
@@ -438,6 +450,10 @@ impl Chessboard {
                         .disable_castling(piece::Color::Black, context::Side::Kingside),
                     _ => (),
                 },
+                // any pawn move resets the halfmove counter
+                piece::Kind::Pawn => {
+                    self.context.reset_halfmoves();
+                }
                 _ => (),
             }
         }
@@ -1314,6 +1330,28 @@ Fullmove: 14
         // now take enpassant
         let _ = board.execute_move(&moves::UCIMove::try_from("f4g3").unwrap());
         let expected_fen = "rnbqkbnr/pppp1ppp/8/8/4P3/6p1/PPPP3P/RNBQKBNR w KQkq - 0 4";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_promotion_noncapturing_resets_halfmove_counter() {
+        let mut board = Chessboard::try_from("3n3k/2P5/8/8/8/8/8/K7 w - - 1 23").unwrap();
+
+        // capture the knight and promote
+        let _ = board.execute_move(&moves::UCIMove::try_from("c7d8n").unwrap());
+        let expected_fen = "3N3k/8/8/8/8/8/8/K7 b - - 0 23";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_promotion_capturing_resets_halfmove_counter() {
+        let mut board = Chessboard::try_from("3n3k/2P5/8/8/8/8/8/K7 w - - 1 23").unwrap();
+
+        // capture the knight and promote
+        let _ = board.execute_move(&moves::UCIMove::try_from("c7c8n").unwrap());
+        let expected_fen = "2Nn3k/8/8/8/8/8/8/K7 b - - 0 23";
         let actual_fen = board.as_fen();
         assert_eq!(expected_fen, actual_fen);
     }
