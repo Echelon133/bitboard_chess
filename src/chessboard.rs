@@ -1261,6 +1261,100 @@ Fullmove: 14
             assert!(available_moves.contains(&black_castling_move));
         }
     }
+
+    #[test]
+    fn chessboard_pawn_moves_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make only pawn moves, which should result in the halfmove counter
+        // always staying at 0
+        let moves = ["e2e4", "e7e5", "d2d3", "d7d6", "f2f3", "f7f6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+
+        let expected_fen = "rnbqkbnr/ppp3pp/3p1p2/4p3/4P3/3P1P2/PPP3PP/RNBQKBNR w KQkq - 0 4";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_regular_captures_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make two knight moves to see if the halfmove counter is incremented
+        let moves = ["e2e4", "e7e5", "g1f3", "b8c6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now make a capture with a knight and then check if the counter has been reset
+        let _ = board.execute_move(&moves::UCIMove::try_from("f3e5").unwrap());
+        let expected_fen = "r1bqkbnr/pppp1ppp/2n5/4N3/4P3/8/PPPP1PPP/RNBQKB1R b KQkq - 0 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_enpassant_captures_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // setup enpassant for black 
+        let moves = ["e2e4", "e7e5", "f2f4", "e5f4", "g2g4"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "rnbqkbnr/pppp1ppp/8/8/4PpP1/8/PPPP3P/RNBQKBNR b KQkq g3 0 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now take enpassant
+        let _ = board.execute_move(&moves::UCIMove::try_from("f4g3").unwrap());
+        let expected_fen = "rnbqkbnr/pppp1ppp/8/8/4P3/6p1/PPPP3P/RNBQKBNR w KQkq - 0 4";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_castling_increments_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // setup the board for a black kingside castle
+        let moves = [
+            "e2e4", "e7e5", "g1f3", "f7f6", "f1d3", "g8h6", "g2g3", "f8b4", "d1e2",
+        ];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "rnbqk2r/pppp2pp/5p1n/4p3/1b2P3/3B1NP1/PPPPQP1P/RNB1K2R b KQkq - 2 5";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now castle and then check if the counter has been incremented
+        let _ = board.execute_move(&moves::UCIMove::try_from("e8g8").unwrap());
+        let expected_fen = "rnbq1rk1/pppp2pp/5p1n/4p3/1b2P3/3B1NP1/PPPPQP1P/RNB1K2R w KQ - 3 6";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_black_move_increments_fullmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make two white, two black moves, which should result in the fullmove counter being
+        // incremented twice
+        let moves = ["e2e4", "e7e5", "g1f3", "g8f6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+
+        let expected_fen = "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
 }
 
 #[cfg(test)]
