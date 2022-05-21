@@ -967,6 +967,41 @@ impl Chessboard {
         let pseudolegal = MoveIterIter::new(self.inner_board, self.context);
         LegalMovesIter::new(pseudolegal, self.clone())
     }
+
+    /// Returns the chessboard state in the FEN format.
+    pub fn as_fen(&self) -> String {
+        let mut fen = String::new();
+
+        for rank in (0..=7).rev() {
+            let mut empty_in_row = 0;
+            for file in 0..=7 {
+                let square_i = (rank * 8) + file;
+                let square = square::Square::from(square_i);
+                let piece = self.inner_board.get_piece(square);
+                match piece {
+                    Some(piece) => {
+                        if empty_in_row > 0 {
+                            fen.push_str(empty_in_row.to_string().as_str());
+                            empty_in_row = 0;
+                        }
+                        fen.push_str(piece.to_string().as_ref());
+                    }
+                    None => {
+                        empty_in_row += 1;
+                        if square.get_file() == square::File::H {
+                            fen.push_str(empty_in_row.to_string().as_str());
+                        }
+                    }
+                }
+            }
+            if rank != 0 {
+                fen.push('/');
+            }
+        }
+        let fen_context = format!(" {:?}", self.context);
+        fen.push_str(&fen_context);
+        fen
+    }
 }
 
 impl Default for Chessboard {
