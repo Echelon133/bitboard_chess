@@ -264,7 +264,8 @@ impl Chessboard {
     /// shows who is making the next move.
     ///
     /// ## Halfmove counter
-    /// Updates of this counter are not implemented yet.
+    /// The halfmove counter is reset after captures and pawn moves. Any other move 
+    /// results in the counter being incremented by one.
     ///
     /// ## Fullmove counter
     /// Fullmove counter should always be incremented after every move made by the
