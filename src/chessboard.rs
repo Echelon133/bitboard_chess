@@ -350,6 +350,11 @@ impl Chessboard {
             self.context.reset_halfmoves();
         }
 
+        // captures always feature a pawn move (and sometimes a capture) so always reset
+        if let moves::TakenMove::Promotion { m: _, captured_piece: _, ctx: _ } = last_move {
+            self.context.reset_halfmoves();
+        }
+
         // set enpassant if a pawn moved two squares from its initial square
         if let moves::TakenMove::PieceMove {
             m,
