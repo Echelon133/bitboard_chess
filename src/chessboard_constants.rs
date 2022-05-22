@@ -57,4 +57,3 @@ pub const WHITE_KSIDE_ROOK_START: square::Square =
 /// Initial square of the black rook (kingside).
 pub const BLACK_KSIDE_ROOK_START: square::Square =
     square::Square::new(square::Rank::R8, square::File::H);
-
