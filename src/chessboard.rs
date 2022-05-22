@@ -445,10 +445,8 @@ impl Chessboard {
     /// Every move (except illegal ones) returns an `Ok` that contains a `MoveResult` with
     /// information about what happend in that move (if there was a capture, en passant,
     /// castle, promotion, check). This information greatly improves the debugging experience.
-    ///
-    /// NOTE: this method only checks validity of received move if it's ran in the release mode.
-    /// During testing, all tests generate and use legal moves, which means that checking validity
-    /// of every move which is guaranteed to be valid only slows down tests.
+    /// If the given move is illegal or the game is already finished, `Err` that contains
+    /// `ChessboardError` is returned.
     pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, ChessboardError> {
         let captured_piece;
         let mut took_enpassant = false;
