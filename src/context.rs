@@ -119,10 +119,7 @@ impl Context {
 
     /// Flips the color which is to play.
     pub fn flip_color_to_play(&mut self) {
-        match self.to_play {
-            piece::Color::White => self.to_play = piece::Color::Black,
-            piece::Color::Black => self.to_play = piece::Color::White,
-        }
+        self.to_play = !self.to_play;
     }
 
     /// Sets color to play.
