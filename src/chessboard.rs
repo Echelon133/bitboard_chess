@@ -292,6 +292,12 @@ impl Chessboard {
     fn update_context(&mut self) {
         // flip the color (which might also increment the fullmove counter)
         self.context.flip_color_to_play();
+        
+        // if the white is to play after the color flip, it means that the fullmove
+        // counter should be incremented
+        if self.context.get_color_to_play() == piece::Color::White {
+            self.context.incr_fullmoves();
+        }
 
         // always increment the halfmove counter
         // if it should have been reset, code below will reset it and
@@ -356,6 +362,10 @@ impl Chessboard {
             self.context.reset_halfmoves();
         }
 
+        // always set it to None, the code below will fix this if it actually should have
+        // been set to Some square
+        self.context.set_enpassant(None);
+
         // set enpassant if a pawn moved two squares from its initial square
         if let moves::TakenMove::PieceMove {
             m,
@@ -388,16 +398,10 @@ impl Chessboard {
                         _ => None,
                     };
                     self.context.set_enpassant(enpassant_target);
-                } else {
-                    self.context.set_enpassant(None);
                 }
-            } else {
-                self.context.set_enpassant(None);
             }
-        } else {
-            self.context.set_enpassant(None);
         }
-
+           
         // if last move was castling, the right to castle of the player who castled
         // should be revoked, as it no longer applies
         if let moves::TakenMove::Castling { s: _, ctx } = last_move {

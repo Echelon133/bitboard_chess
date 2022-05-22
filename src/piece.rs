@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Not};
 
 /// Represents all types of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
@@ -88,6 +88,19 @@ impl TryFrom<char> for Kind {
 pub enum Color {
     Black,
     White,
+}
+
+impl Not for Color {
+    type Output = Color;
+
+    /// Changes `Color::White` to `Color::Black` and vice versa.
+    fn not(self) -> Self::Output {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }   
+    }
+
 }
 
 /// Represents a chess piece.

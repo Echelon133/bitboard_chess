@@ -117,17 +117,9 @@ impl Context {
         self.to_play
     }
 
-    /// Flips the color which is to play. This method increments fullmoves counter
-    /// if the previous move was made with black pieces.
+    /// Flips the color which is to play.
     pub fn flip_color_to_play(&mut self) {
-        match self.to_play {
-            piece::Color::White => self.to_play = piece::Color::Black,
-            piece::Color::Black => self.to_play = piece::Color::White,
-        }
-
-        if self.to_play == piece::Color::White {
-            self.incr_fullmoves();
-        }
+        self.to_play = !self.to_play;
     }
 
     /// Sets color to play.
@@ -432,21 +424,6 @@ mod tests {
         context.reset_halfmoves();
 
         assert_eq!(context.get_halfmoves(), 0);
-        assert_eq!(context.get_fullmoves(), 2);
-    }
-
-    #[test]
-    fn context_flip_color_to_play_increments_fullmoves() {
-        let mut context = Context::default();
-
-        // flip once (shouldnt increment the fullmove counter)
-        context.flip_color_to_play();
-        assert_eq!(context.get_color_to_play(), piece::Color::Black);
-        assert_eq!(context.get_fullmoves(), 1);
-
-        // flip the second time (should increment the fullmove counter)
-        context.flip_color_to_play();
-        assert_eq!(context.get_color_to_play(), piece::Color::White);
         assert_eq!(context.get_fullmoves(), 2);
     }
 }
