@@ -132,6 +132,16 @@ impl Iterator for LegalMovesIter {
     }
 }
 
+/// Represents the end result of a game.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum GameResult {
+    /// Contains the color which won by surrender of the opposite color.
+    SurrenderedWin(piece::Color),
+    /// Contains the color which won by checkmating the opponent.
+    Checkmate(piece::Color),
+    Draw,
+}
+
 /// Holds information about a move that's been executed on the board.
 ///
 /// This struct is used for storing information that's used for verifying correctness
@@ -176,7 +186,7 @@ pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
     history: Vec<moves::TakenMove>,
-    end_result: Option<MoveResult>,
+    end_result: Option<GameResult>,
 }
 
 impl Clone for Chessboard {
@@ -439,14 +449,8 @@ impl Chessboard {
         let mut castled = false;
         let mut promoted = false;
 
-        // don't compile this check in test mode, because all tests immediately stop
-        // playing the game when they receive `GameResult` and do not attempt to further
-        // play a game that's already finished
-        #[cfg(not(test))]
-        {
-            if self.end_result.is_some() {
-                return Ok(self.end_result.unwrap());
-            }
+        if self.end_result.is_some() {
+            return Err("game has already finished");
         }
 
         // don't compile this check in test mode, because tests only execute moves that
@@ -493,26 +497,27 @@ impl Chessboard {
         };
 
         if next_player_has_no_moves {
+            let move_result;
             if is_king_in_check {
                 // the winner is the previous color
                 let winner = !color_to_play;
-                self.end_result = Some(MoveResult::Checkmate { winner, info });
+                move_result = MoveResult::Checkmate { winner, info };
+                // set the result of the entire game
+                self.end_result = Some(GameResult::Checkmate(winner));
             } else {
-                self.end_result = Some(MoveResult::Draw {
-                    stalemate: true,
-                    info,
-                });
+                // set the result of the entire game
+                move_result = MoveResult::Draw { stalemate: true, info };
+                self.end_result = Some(GameResult::Draw);
             }
-            Ok(self.end_result.unwrap())
+            Ok(move_result)
         } else {
             let (white_taken, black_taken) = self.inner_board.get_squares_taken_pair();
             // both players only have their kings, therefore it's a draw
             if white_taken.count_set() == 1 && black_taken.count_set() == 1 {
-                self.end_result = Some(MoveResult::Draw {
-                    stalemate: false,
-                    info,
-                });
-                Ok(self.end_result.unwrap())
+                let result = MoveResult::Draw { stalemate: false, info };
+                // set the result of the entire game
+                self.end_result = Some(GameResult::Draw);
+                Ok(result)
             } else {
                 // TODO: implement detection of draws which happen because:
                 // - the halfmoves counter reached 50
@@ -520,6 +525,38 @@ impl Chessboard {
                 Ok(MoveResult::Continues { info })
             }
         }
+    }
+
+    /// Sets draw as the game result and returns `true` 
+    /// if the game hadn't been already over when this method was called. 
+    /// Otherwise `false` is returned and the game result is not changed.
+    pub fn set_win(&mut self, winner: piece::Color) -> bool {
+        match self.end_result {
+            Some(_) => false,
+            None => {
+                self.end_result = Some(GameResult::SurrenderedWin(winner));
+                true
+            }
+        }
+    }
+
+    /// Sets draw as the game result and returns `true` 
+    /// if the game hadn't been already over when this method was called. 
+    /// Otherwise `false` is returned and the game result is not changed.
+    pub fn set_draw(&mut self) -> bool {
+        match self.end_result {
+            Some(_) => false,
+            None => {
+                self.end_result = Some(GameResult::Draw);
+                true
+            }
+        }
+    }
+
+    /// Returns `None` if the game is not over. If the game is over, `Some`
+    /// containing the [`GameResult`] is returned.
+    pub fn get_game_result(&self) -> Option<GameResult> {
+        self.end_result
     }
 
     /// Returns true if the given move is a move that can appear on the board with its current
@@ -692,6 +729,7 @@ impl Chessboard {
             moves::TakenMove::Castling { s: _, ctx } => ctx,
         };
         self.context = last_ctx;
+        self.end_result = None;
     }
 
     /// Checks if the given piece and move of that piece describe castling. If they do, it returns
@@ -1347,6 +1385,42 @@ Fullmove: 14
         let expected_fen = "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
         let actual_fen = board.as_fen();
         assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_stalemating_sets_game_result() {
+        // executing c8e6 in this position results in a stalemate
+        let mut board = Chessboard::try_from("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR w KQ - 1 10").unwrap();
+
+        assert_eq!(board.get_game_result(), None);
+        // execute stalemating move
+        let _ = board.execute_move(&moves::UCIMove::try_from("c8e6").unwrap());
+        assert_eq!(board.get_game_result(), Some(GameResult::Draw));
+    }
+
+    #[test]
+    fn chessboard_checkmating_sets_game_result() {
+        // executing d8h4 in this position results in a checkmate
+        let mut board = Chessboard::try_from("rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2").unwrap();
+
+        assert_eq!(board.get_game_result(), None);
+        // execute checkmating move
+        let _ = board.execute_move(&moves::UCIMove::try_from("d8h4").unwrap());
+        assert_eq!(board.get_game_result(), Some(GameResult::Checkmate(piece::Color::Black)));
+    }
+
+    #[test]
+    fn chessboard_surrendering_sets_game_result() {
+        let mut board = Chessboard::default();
+        board.set_win(piece::Color::White);
+        assert_eq!(board.get_game_result(), Some(GameResult::SurrenderedWin(piece::Color::White)));
+    }
+
+    #[test]
+    fn chessboard_draw_agreement_sets_game_result() {
+        let mut board = Chessboard::default();
+        board.set_draw();
+        assert_eq!(board.get_game_result(), Some(GameResult::Draw));
     }
 }
 
