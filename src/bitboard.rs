@@ -92,7 +92,7 @@ impl From<u64> for Bitboard {
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
-    
+
     /// Returns [`Bitboard`] with its bits set to the result of
     /// the bitwise AND with the other bitboard's bits.
     #[inline]

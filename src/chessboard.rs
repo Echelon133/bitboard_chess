@@ -506,7 +506,10 @@ impl Chessboard {
                 self.end_result = Some(GameResult::Checkmate(winner));
             } else {
                 // set the result of the entire game
-                move_result = MoveResult::Draw { stalemate: true, info };
+                move_result = MoveResult::Draw {
+                    stalemate: true,
+                    info,
+                };
                 self.end_result = Some(GameResult::Draw);
             }
             Ok(move_result)
@@ -514,7 +517,10 @@ impl Chessboard {
             let (white_taken, black_taken) = self.inner_board.get_squares_taken_pair();
             // both players only have their kings, therefore it's a draw
             if white_taken.count_set() == 1 && black_taken.count_set() == 1 {
-                let result = MoveResult::Draw { stalemate: false, info };
+                let result = MoveResult::Draw {
+                    stalemate: false,
+                    info,
+                };
                 // set the result of the entire game
                 self.end_result = Some(GameResult::Draw);
                 Ok(result)
@@ -527,8 +533,8 @@ impl Chessboard {
         }
     }
 
-    /// Sets draw as the game result and returns `true` 
-    /// if the game hadn't been already over when this method was called. 
+    /// Sets draw as the game result and returns `true`
+    /// if the game hadn't been already over when this method was called.
     /// Otherwise `false` is returned and the game result is not changed.
     pub fn set_win(&mut self, winner: piece::Color) -> bool {
         match self.end_result {
@@ -540,8 +546,8 @@ impl Chessboard {
         }
     }
 
-    /// Sets draw as the game result and returns `true` 
-    /// if the game hadn't been already over when this method was called. 
+    /// Sets draw as the game result and returns `true`
+    /// if the game hadn't been already over when this method was called.
     /// Otherwise `false` is returned and the game result is not changed.
     pub fn set_draw(&mut self) -> bool {
         match self.end_result {
@@ -1390,7 +1396,9 @@ Fullmove: 14
     #[test]
     fn chessboard_stalemating_sets_game_result() {
         // executing c8e6 in this position results in a stalemate
-        let mut board = Chessboard::try_from("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR w KQ - 1 10").unwrap();
+        let mut board =
+            Chessboard::try_from("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR w KQ - 1 10")
+                .unwrap();
 
         assert_eq!(board.get_game_result(), None);
         // execute stalemating move
@@ -1401,19 +1409,27 @@ Fullmove: 14
     #[test]
     fn chessboard_checkmating_sets_game_result() {
         // executing d8h4 in this position results in a checkmate
-        let mut board = Chessboard::try_from("rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2").unwrap();
+        let mut board =
+            Chessboard::try_from("rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2")
+                .unwrap();
 
         assert_eq!(board.get_game_result(), None);
         // execute checkmating move
         let _ = board.execute_move(&moves::UCIMove::try_from("d8h4").unwrap());
-        assert_eq!(board.get_game_result(), Some(GameResult::Checkmate(piece::Color::Black)));
+        assert_eq!(
+            board.get_game_result(),
+            Some(GameResult::Checkmate(piece::Color::Black))
+        );
     }
 
     #[test]
     fn chessboard_surrendering_sets_game_result() {
         let mut board = Chessboard::default();
         board.set_win(piece::Color::White);
-        assert_eq!(board.get_game_result(), Some(GameResult::SurrenderedWin(piece::Color::White)));
+        assert_eq!(
+            board.get_game_result(),
+            Some(GameResult::SurrenderedWin(piece::Color::White))
+        );
     }
 
     #[test]

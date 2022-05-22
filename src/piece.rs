@@ -98,9 +98,8 @@ impl Not for Color {
         match self {
             Color::White => Color::Black,
             Color::Black => Color::White,
-        }   
+        }
     }
-
 }
 
 /// Represents a chess piece.
