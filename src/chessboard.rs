@@ -85,7 +85,7 @@ impl Iterator for MoveIterIter {
 ///
 /// It iterates over [`MoveIterIter`], which gives out iterators of pseudo-legal moves.
 /// It returns items as long as there are pseudo-legal moves that are verified as legal
-/// by the [`Self::is_move_legal`] method.
+/// for the current position on the chessboard.
 pub struct LegalMovesIter {
     iterators: MoveIterIter,
     current_iter: Option<movegen::MoveIter>,
