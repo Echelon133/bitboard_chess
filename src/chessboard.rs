@@ -264,7 +264,8 @@ impl Chessboard {
     /// shows who is making the next move.
     ///
     /// ## Halfmove counter
-    /// Updates of this counter are not implemented yet.
+    /// The halfmove counter is reset after captures and pawn moves. Any other move 
+    /// results in the counter being incremented by one.
     ///
     /// ## Fullmove counter
     /// Fullmove counter should always be incremented after every move made by the
@@ -292,6 +293,11 @@ impl Chessboard {
         // flip the color (which might also increment the fullmove counter)
         self.context.flip_color_to_play();
 
+        // always increment the halfmove counter
+        // if it should have been reset, code below will reset it and
+        // the counter state will be correct anyway
+        self.context.incr_halfmoves();
+
         let last_move = self.history.last().unwrap();
 
         // disable castling if rook captured, and rook can be captured only by a piece
@@ -311,8 +317,10 @@ impl Chessboard {
         };
         if let Some((m, captured_piece)) = capture_info {
             if let Some(captured_piece) = captured_piece {
-                let captured_square = m.get_target();
+                // reset the halfmove counter because of a capture
+                self.context.reset_halfmoves();
 
+                let captured_square = m.get_target();
                 if captured_piece.get_kind() == piece::Kind::Rook {
                     let side = match (captured_piece.get_color(), captured_square) {
                         // check if the captured square is a square where rooks of that color start
@@ -336,6 +344,16 @@ impl Chessboard {
                     }
                 }
             }
+        }
+
+        // enpassant always captures, which should result in reseting the halfmove counter
+        if let moves::TakenMove::EnPassant { m: _, ctx: _ } = last_move {
+            self.context.reset_halfmoves();
+        }
+
+        // captures always feature a pawn move (and sometimes a capture) so always reset
+        if let moves::TakenMove::Promotion { m: _, captured_piece: _, ctx: _ } = last_move {
+            self.context.reset_halfmoves();
         }
 
         // set enpassant if a pawn moved two squares from its initial square
@@ -438,6 +456,10 @@ impl Chessboard {
                         .disable_castling(piece::Color::Black, context::Side::Kingside),
                     _ => (),
                 },
+                // any pawn move resets the halfmove counter
+                piece::Kind::Pawn => {
+                    self.context.reset_halfmoves();
+                }
                 _ => (),
             }
         }
@@ -967,6 +989,41 @@ impl Chessboard {
         let pseudolegal = MoveIterIter::new(self.inner_board, self.context);
         LegalMovesIter::new(pseudolegal, self.clone())
     }
+
+    /// Returns the chessboard state in the FEN format.
+    pub fn as_fen(&self) -> String {
+        let mut fen = String::new();
+
+        for rank in (0..=7).rev() {
+            let mut empty_in_row = 0;
+            for file in 0..=7 {
+                let square_i = (rank * 8) + file;
+                let square = square::Square::from(square_i);
+                let piece = self.inner_board.get_piece(square);
+                match piece {
+                    Some(piece) => {
+                        if empty_in_row > 0 {
+                            fen.push_str(empty_in_row.to_string().as_str());
+                            empty_in_row = 0;
+                        }
+                        fen.push_str(piece.to_string().as_ref());
+                    }
+                    None => {
+                        empty_in_row += 1;
+                        if square.get_file() == square::File::H {
+                            fen.push_str(empty_in_row.to_string().as_str());
+                        }
+                    }
+                }
+            }
+            if rank != 0 {
+                fen.push('/');
+            }
+        }
+        let fen_context = format!(" {:?}", self.context);
+        fen.push_str(&fen_context);
+        fen
+    }
 }
 
 impl Default for Chessboard {
@@ -1225,6 +1282,122 @@ Fullmove: 14
             let available_moves = board.iter_legal_moves().collect::<Vec<moves::UCIMove>>();
             assert!(available_moves.contains(&black_castling_move));
         }
+    }
+
+    #[test]
+    fn chessboard_pawn_moves_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make only pawn moves, which should result in the halfmove counter
+        // always staying at 0
+        let moves = ["e2e4", "e7e5", "d2d3", "d7d6", "f2f3", "f7f6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+
+        let expected_fen = "rnbqkbnr/ppp3pp/3p1p2/4p3/4P3/3P1P2/PPP3PP/RNBQKBNR w KQkq - 0 4";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_regular_captures_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make two knight moves to see if the halfmove counter is incremented
+        let moves = ["e2e4", "e7e5", "g1f3", "b8c6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now make a capture with a knight and then check if the counter has been reset
+        let _ = board.execute_move(&moves::UCIMove::try_from("f3e5").unwrap());
+        let expected_fen = "r1bqkbnr/pppp1ppp/2n5/4N3/4P3/8/PPPP1PPP/RNBQKB1R b KQkq - 0 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_enpassant_captures_reset_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // setup enpassant for black 
+        let moves = ["e2e4", "e7e5", "f2f4", "e5f4", "g2g4"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "rnbqkbnr/pppp1ppp/8/8/4PpP1/8/PPPP3P/RNBQKBNR b KQkq g3 0 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now take enpassant
+        let _ = board.execute_move(&moves::UCIMove::try_from("f4g3").unwrap());
+        let expected_fen = "rnbqkbnr/pppp1ppp/8/8/4P3/6p1/PPPP3P/RNBQKBNR w KQkq - 0 4";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_promotion_noncapturing_resets_halfmove_counter() {
+        let mut board = Chessboard::try_from("3n3k/2P5/8/8/8/8/8/K7 w - - 1 23").unwrap();
+
+        // capture the knight and promote
+        let _ = board.execute_move(&moves::UCIMove::try_from("c7d8n").unwrap());
+        let expected_fen = "3N3k/8/8/8/8/8/8/K7 b - - 0 23";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_promotion_capturing_resets_halfmove_counter() {
+        let mut board = Chessboard::try_from("3n3k/2P5/8/8/8/8/8/K7 w - - 1 23").unwrap();
+
+        // capture the knight and promote
+        let _ = board.execute_move(&moves::UCIMove::try_from("c7c8n").unwrap());
+        let expected_fen = "2Nn3k/8/8/8/8/8/8/K7 b - - 0 23";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_castling_increments_halfmove_counter() {
+        let mut board = Chessboard::default();
+
+        // setup the board for a black kingside castle
+        let moves = [
+            "e2e4", "e7e5", "g1f3", "f7f6", "f1d3", "g8h6", "g2g3", "f8b4", "d1e2",
+        ];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+        let expected_fen = "rnbqk2r/pppp2pp/5p1n/4p3/1b2P3/3B1NP1/PPPPQP1P/RNB1K2R b KQkq - 2 5";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+
+        // now castle and then check if the counter has been incremented
+        let _ = board.execute_move(&moves::UCIMove::try_from("e8g8").unwrap());
+        let expected_fen = "rnbq1rk1/pppp2pp/5p1n/4p3/1b2P3/3B1NP1/PPPPQP1P/RNB1K2R w KQ - 3 6";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
+    }
+
+    #[test]
+    fn chessboard_black_move_increments_fullmove_counter() {
+        let mut board = Chessboard::default();
+
+        // make two white, two black moves, which should result in the fullmove counter being
+        // incremented twice
+        let moves = ["e2e4", "e7e5", "g1f3", "g8f6"];
+        for mv in moves {
+            let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
+        }
+
+        let expected_fen = "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+        let actual_fen = board.as_fen();
+        assert_eq!(expected_fen, actual_fen);
     }
 }
 
