@@ -571,7 +571,7 @@ impl Chessboard {
     /// - has to be an actual pseudo-legal move that's currently possible on the board for
     ///     the kind of piece that occupies that start square
     /// - has to be a pseudo-legal move that can be verified as legal by `is_move_legal`
-    pub fn can_be_played(&mut self, m: &moves::UCIMove) -> bool {
+    fn can_be_played(&mut self, m: &moves::UCIMove) -> bool {
         let start = match *m {
             moves::UCIMove::Regular { m } => m.get_start(),
             moves::UCIMove::Promotion { m, .. } => m.get_start(),
