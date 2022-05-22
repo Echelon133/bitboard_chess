@@ -495,10 +495,7 @@ impl Chessboard {
         if next_player_has_no_moves {
             if is_king_in_check {
                 // the winner is the previous color
-                let winner = match color_to_play {
-                    piece::Color::White => piece::Color::Black,
-                    piece::Color::Black => piece::Color::White,
-                };
+                let winner = !color_to_play;
                 self.end_result = Some(MoveResult::Checkmate { winner, info });
             } else {
                 self.end_result = Some(MoveResult::Draw {
