@@ -173,6 +173,12 @@ pub enum MoveResult {
     },
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ChessboardError {
+    IllegalMove,
+    GameAlreadyFinished,
+}
+
 /// Represents a playable chessboard.
 ///
 /// This struct is responsible for:
@@ -443,27 +449,21 @@ impl Chessboard {
     /// NOTE: this method only checks validity of received move if it's ran in the release mode.
     /// During testing, all tests generate and use legal moves, which means that checking validity
     /// of every move which is guaranteed to be valid only slows down tests.
-    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, &'static str> {
+    pub fn execute_move(&mut self, m: &moves::UCIMove) -> Result<MoveResult, ChessboardError> {
         let captured_piece;
         let mut took_enpassant = false;
         let mut castled = false;
         let mut promoted = false;
 
         if self.end_result.is_some() {
-            return Err("game has already finished");
+            return Err(ChessboardError::GameAlreadyFinished);
         }
 
-        // don't compile this check in test mode, because tests only execute moves that
-        // had previously been checked for their legality, therefore this check is
-        // unnecessary, as it does never return an error
-        #[cfg(not(test))]
-        {
-            // return error if the given move is a move that cannot even
-            // appear on the board (for any disqualifying reason described in can_be_played
-            // docs)
-            if !self.can_be_played(m) {
-                return Err("illegal move");
-            }
+        // return error if the given move is a move that cannot even
+        // appear on the board (for any disqualifying reason described in can_be_played
+        // docs)
+        if !self.can_be_played(m) {
+            return Err(ChessboardError::IllegalMove);
         }
 
         match m {
@@ -1421,6 +1421,25 @@ Fullmove: 14
         let mut board = Chessboard::default();
         board.set_draw();
         assert_eq!(board.get_game_result(), Some(GameResult::Draw));
+    }
+
+    #[test]
+    fn chessboard_execute_move_err_when_move_illegal() {
+        let mut board = Chessboard::default();
+
+        let result = board.execute_move(&moves::UCIMove::try_from("e5e6").unwrap());
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ChessboardError::IllegalMove);
+    }
+
+    #[test]
+    fn chessboard_execute_move_err_when_game_already_finished() {
+        let mut board = Chessboard::default();
+        board.set_win(piece::Color::White);
+
+        let result = board.execute_move(&moves::UCIMove::try_from("e2e4").unwrap());
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), ChessboardError::GameAlreadyFinished);
     }
 }
 
