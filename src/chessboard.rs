@@ -2,69 +2,12 @@ use std::fmt::Debug;
 
 use crate::bitboard;
 use crate::board;
+use crate::chessboard_constants::*;
 use crate::context;
 use crate::movegen;
 use crate::moves;
 use crate::piece;
 use crate::square;
-
-/// Squares that create a path between the white king and H1 rook,
-/// which cannot be attacked by a black piece if the player wants to
-/// legally castle.
-const WHITE_KINGSIDE_CASTLING_PATH: [square::Square; 3] = [
-    square::Square::new(square::Rank::R1, square::File::E),
-    square::Square::new(square::Rank::R1, square::File::F),
-    square::Square::new(square::Rank::R1, square::File::G),
-];
-
-/// Squares that create a path between the black king and H8 rook,
-/// which cannot be attacked by a white piece if the player wants to
-/// legally castle.
-const BLACK_KINGSIDE_CASTLING_PATH: [square::Square; 3] = [
-    square::Square::new(square::Rank::R8, square::File::E),
-    square::Square::new(square::Rank::R8, square::File::F),
-    square::Square::new(square::Rank::R8, square::File::G),
-];
-
-/// Squares that create a path between the white king and A1 rook,
-/// which cannot be attacked by a black piece if the player wants to
-/// legally castle.
-const WHITE_QUEENSIDE_CASTLING_PATH: [square::Square; 3] = [
-    square::Square::new(square::Rank::R1, square::File::C),
-    square::Square::new(square::Rank::R1, square::File::D),
-    square::Square::new(square::Rank::R1, square::File::E),
-];
-
-/// Squares that create a path between the black king and A8 rook,
-/// which cannot be attacked by a white piece if the player wants to
-/// legally castle.
-const BLACK_QUEENSIDE_CASTLING_PATH: [square::Square; 3] = [
-    square::Square::new(square::Rank::R8, square::File::C),
-    square::Square::new(square::Rank::R8, square::File::D),
-    square::Square::new(square::Rank::R8, square::File::E),
-];
-
-/// Initial square of the white king.
-const WHITE_KING_START: square::Square = square::Square::new(square::Rank::R1, square::File::E);
-
-/// Initial square of the black king.
-const BLACK_KING_START: square::Square = square::Square::new(square::Rank::R8, square::File::E);
-
-/// Initial square of the white rook (queenside).
-const WHITE_QSIDE_ROOK_START: square::Square =
-    square::Square::new(square::Rank::R1, square::File::A);
-
-/// Initial square of the black rook (queenside).
-const BLACK_QSIDE_ROOK_START: square::Square =
-    square::Square::new(square::Rank::R8, square::File::A);
-
-/// Initial square of the white rook (kingside).
-const WHITE_KSIDE_ROOK_START: square::Square =
-    square::Square::new(square::Rank::R1, square::File::H);
-
-/// Initial square of the black rook (kingside).
-const BLACK_KSIDE_ROOK_START: square::Square =
-    square::Square::new(square::Rank::R8, square::File::H);
 
 /// Iterator over [`movegen::MoveIter`] iterators. There is a single [`movegen::MoveIter`] for
 /// every single square that's occupied by the player who is about to make a move.
@@ -264,7 +207,7 @@ impl Chessboard {
     /// shows who is making the next move.
     ///
     /// ## Halfmove counter
-    /// The halfmove counter is reset after captures and pawn moves. Any other move 
+    /// The halfmove counter is reset after captures and pawn moves. Any other move
     /// results in the counter being incremented by one.
     ///
     /// ## Fullmove counter
@@ -292,7 +235,7 @@ impl Chessboard {
     fn update_context(&mut self) {
         // flip the color (which might also increment the fullmove counter)
         self.context.flip_color_to_play();
-        
+
         // if the white is to play after the color flip, it means that the fullmove
         // counter should be incremented
         if self.context.get_color_to_play() == piece::Color::White {
@@ -358,7 +301,12 @@ impl Chessboard {
         }
 
         // captures always feature a pawn move (and sometimes a capture) so always reset
-        if let moves::TakenMove::Promotion { m: _, captured_piece: _, ctx: _ } = last_move {
+        if let moves::TakenMove::Promotion {
+            m: _,
+            captured_piece: _,
+            ctx: _,
+        } = last_move
+        {
             self.context.reset_halfmoves();
         }
 
@@ -401,7 +349,7 @@ impl Chessboard {
                 }
             }
         }
-           
+
         // if last move was castling, the right to castle of the player who castled
         // should be revoked, as it no longer applies
         if let moves::TakenMove::Castling { s: _, ctx } = last_move {
@@ -547,10 +495,7 @@ impl Chessboard {
         if next_player_has_no_moves {
             if is_king_in_check {
                 // the winner is the previous color
-                let winner = match color_to_play {
-                    piece::Color::White => piece::Color::Black,
-                    piece::Color::Black => piece::Color::White,
-                };
+                let winner = !color_to_play;
                 self.end_result = Some(MoveResult::Checkmate { winner, info });
             } else {
                 self.end_result = Some(MoveResult::Draw {
@@ -1328,7 +1273,7 @@ Fullmove: 14
     fn chessboard_enpassant_captures_reset_halfmove_counter() {
         let mut board = Chessboard::default();
 
-        // setup enpassant for black 
+        // setup enpassant for black
         let moves = ["e2e4", "e7e5", "f2f4", "e5f4", "g2g4"];
         for mv in moves {
             let _ = board.execute_move(&moves::UCIMove::try_from(mv).unwrap());
