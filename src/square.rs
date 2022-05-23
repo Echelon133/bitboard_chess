@@ -1,3 +1,5 @@
+//! This module implements structs representing files, ranks and squares on a chessboard.
+
 use std::fmt::Debug;
 
 static FILES: [File; 8] = [
@@ -22,7 +24,7 @@ static RANKS: [Rank; 8] = [
     Rank::R8,
 ];
 
-/// Represents a file on the chessboard.
+/// A file on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum File {
     A,
@@ -37,13 +39,14 @@ pub enum File {
 
 impl File {
     /// Returns the index of the file.
+    ///
     /// Indexes start from A, so the index of
-    /// A is 0, then B is 1, and so on.
+    /// A is 0, then B is 1, etc.
     pub const fn index(&self) -> u8 {
         *self as u8
     }
 
-    /// Returns a char representing the file.
+    /// Returns a lowercase ascii char representing the file.
     pub fn as_char(&self) -> char {
         let chrs = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
         chrs[self.index() as usize]
@@ -54,8 +57,9 @@ impl TryFrom<usize> for File {
     type Error = &'static str;
 
     /// Converts an index between 0 and 7 into a [`File`].
+    ///
     /// This index is consistent with the value that is returned
-    /// when index() is called on a specific file.
+    /// by [`File::index`].
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
             Err("cannot convert a value this big to a file")
@@ -68,10 +72,10 @@ impl TryFrom<usize> for File {
 impl TryFrom<char> for File {
     type Error = &'static str;
 
-    /// Converts a single numeric character from 'a'..='h' range
-    /// (lowercase or uppercase) into a [`File`] that represents that character.
+    /// Converts a single character from 'a'..='h' range
+    /// (lowercase or uppercase) into a [`File`].
     ///
-    /// This means that:
+    /// Conversion rules:
     /// - 'a' gives File::A,
     /// - 'A' gives File::A,
     /// - 'b' gives File::B,
@@ -96,7 +100,7 @@ impl TryFrom<char> for File {
     }
 }
 
-/// Represents a rank on the chessboard.
+/// A rank on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Rank {
     R1,
@@ -111,8 +115,9 @@ pub enum Rank {
 
 impl Rank {
     /// Returns the index of the rank.
+    ///
     /// Indexes start from the first rank, so the
-    /// index of R1 is 0, then R2 is 1, and so on.
+    /// index of R1 is 0, then R2 is 1, etc.
     pub const fn index(&self) -> u8 {
         *self as u8
     }
@@ -128,8 +133,9 @@ impl TryFrom<usize> for Rank {
     type Error = &'static str;
 
     /// Converts an index between 0 and 7 into a [`Rank`].
+    ///
     /// This index is consistent with the value that is returned
-    /// when index() is called on a specific rank.
+    /// by [`Rank::index`].
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         if value >= 8 {
             Err("cannot convert a value this big to a rank")
@@ -143,7 +149,9 @@ impl TryFrom<char> for Rank {
     type Error = &'static str;
 
     /// Converts a single numeric character from '1'..='8' range into
-    /// a [`Rank`] that represents that number. This means that:
+    /// a [`Rank`]. 
+    ///
+    /// Conversion rules:
     /// - '1' gives Rank::R1
     /// - '2' gives Rank::R2
     /// - etc.
@@ -166,10 +174,10 @@ impl TryFrom<char> for Rank {
     }
 }
 
-/// Represents a single square on the board with precise coordinates specified
-/// by the Square's [`File`] and [`Rank`].
+/// A single square on the board with precise coordinates specified
+/// by the square's [`File`] and [`Rank`].
 ///
-/// Square indexes should grow from 0 to 63.
+/// Valid square indexes should range from 0 to 63.
 /// Indexes of files grow from left to right, and indexes of ranks grow
 /// from bottom to top. This means that:
 ///
@@ -178,19 +186,19 @@ impl TryFrom<char> for Rank {
 /// - 'a8' has index 56
 /// - 'h8' has index 63
 ///
-/// Index of the square = (rank_index * 8) + file_index
+/// Index of the square = *(rank_index * 8) + file_index*
 ///
 /// Bottom-left corner of the board is represented by a following pair
 /// of indexes: (0, 0). The top-right corner of the board is represented by
 /// a (7, 7) pair.
+///
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Square {
     square_index: u8,
 }
 
 impl Square {
-    /// Creates an immutable [`Square`] that represents given [`Rank`] and [`File`]
-    /// on the board.
+    /// Creates an immutable [`Square`] that's described by given [`Rank`] and [`File`].
     pub const fn new(rank: Rank, file: File) -> Self {
         Self {
             square_index: (rank.index() * 8) + file.index(),
@@ -213,28 +221,34 @@ impl Square {
         (self.square_index % 8u8) as usize
     }
 
-    /// Returns the index which the square represents.
+    /// Returns the index of the square.
     pub fn get_index(&self) -> usize {
         self.square_index as usize
     }
 
-    /// Returns a [`Rank`] of the square. Needs to recalculated on every call
-    /// because the [`Square`] internally only stores its index.
+    /// Returns the [`Rank`] of the square. 
+    ///
+    /// **NOTE**: this is recalculated on every call because the [`Square`] 
+    /// internally only stores its index.
     pub fn get_rank(&self) -> Rank {
         // unwrap right away, because it's guaranteed that the calculated index
         // represents a rank
         Rank::try_from(self.rank_index()).unwrap()
     }
 
-    /// Returns a [`File`] of the square. Needs to be recalculated on every call
-    /// because the [`Square`] internally only stores its index.
+    /// Returns the [`File`] of the square. 
+    ///
+    /// **NOTE**: this is recalculated on every call because the [`Square`] 
+    /// internally only stores its index.
     pub fn get_file(&self) -> File {
         // unwrap right away, because it's guaranteed that the calculated index
         // represents a file
         File::try_from(self.file_index()).unwrap()
     }
 
-    /// Returns a (rank, file) pair of indexes. For example:
+    /// Returns a (rank, file) pair of indexes. 
+    ///
+    /// For example:
     /// - 'a1' is represented as (0, 0)
     /// - 'b1' is represented as (0, 1)
     /// - 'h8' is represented as (7, 7)
@@ -252,7 +266,7 @@ impl From<u8> for Square {
 impl TryFrom<&str> for Square {
     type Error = &'static str;
 
-    /// Converts values such as "a1", "g5", "c5", etc.
+    /// Converts values such as 'a1', 'g5', 'c5', etc. 
     /// into actual [`Square`] that represents that square
     /// on the board.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
