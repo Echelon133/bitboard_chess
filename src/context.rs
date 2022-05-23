@@ -1,27 +1,34 @@
+//! This module implements a struct which holds additional information about
+//! a chess position.
+//!
+//! Context basically stores the information that can be found in the
+//! second part of every FEN string (right after the first space).
+
 use std::fmt::Debug;
 
 use crate::piece;
 use crate::square;
 
-/// Represents a side of castling.
+/// A side of castling.
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Side {
     Queenside,
     Kingside,
 }
 
-/// Stores the context of the board at some point in time. Holds information such as:
-/// - which color makes the next move
-/// - which color can castle (and to which side)
-/// - if en-passant is possible, and if yes, then on which square
-/// - how many halfmoves have been made
-/// - how many fullmoves have been made
+/// A context of a board.
 ///
-/// This context should be saved after every move, so that in case of some move's
-/// reversal the previous context can be restored.
-/// Without restoring the context, reversal of moves that change it
-/// might cause the board to enter an invalid state.
+/// Stores information about:
+/// - castling rights of both colors
+/// - possible enpassant target square
+/// - color to play
+/// - halfmove counter
+/// - fullmove counter
 ///
+/// Context should be updated after every single move that's executed on the board.
+/// Move reversal should restore the context of the previous move, otherwise the entire
+/// state of the board gets corrupted and it's possible that some valid positions will
+/// no longer be possible, even though they should be.
 #[derive(Clone, Copy, PartialEq, Hash, Eq)]
 pub struct Context {
     castling_flags: u8,
@@ -32,7 +39,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(
+    /// Creates a [`Conetxt`] from the given arguments.
+    fn new(
         queenside_white: bool,
         kingside_white: bool,
         queenside_black: bool,
@@ -65,7 +73,7 @@ impl Context {
         }
     }
 
-    /// Checks whether a certain color can castle on kingside or queenside.
+    /// Checks whether a certain `color` can castle on the given `side`.
     pub fn can_castle(&self, color: piece::Color, side: Side) -> bool {
         let mut shift_right = match color {
             piece::Color::White => 3,
@@ -81,7 +89,7 @@ impl Context {
         ((self.castling_flags >> shift_right) & 0b1) == 1
     }
 
-    /// Disables castling rights of the player with given color and on the given side.
+    /// Disables castling rights of the player with the given `color` on the given `side`.
     pub fn disable_castling(&mut self, color: piece::Color, side: Side) {
         let mut mask = match color {
             piece::Color::White => 0b11110111,
@@ -98,21 +106,17 @@ impl Context {
         self.castling_flags &= mask;
     }
 
-    /// Returns an [`Option`] that may contain a square behind the pawn that's moved two
-    /// squares at once.
+    /// Returns an [`Option`] that may contain an enpassant target square.
     pub fn get_enpassant(&self) -> Option<square::Square> {
         self.enpassant
     }
 
-    /// Sets en-passant target square. The square should always be
-    /// right behind the pawn that's just moved two squares in a single move.
-    /// Whether the opposite player choses to capture en-passant or not, the
-    /// en-passant should be set to [`None`] right after making the move.
+    /// Sets enpassant target square.
     pub fn set_enpassant(&mut self, enpassant: Option<square::Square>) {
         self.enpassant = enpassant;
     }
 
-    /// Returns color which is currently to play
+    /// Returns color which is currently to play.
     pub fn get_color_to_play(&self) -> piece::Color {
         self.to_play
     }
@@ -154,7 +158,9 @@ impl Context {
 }
 
 impl Default for Context {
-    /// Creates a default context, which:
+    /// Creates a default context.
+    ///
+    /// Default context:
     /// - says white is to play
     /// - gives both sides the right to castle either side
     /// - has no en-passant target square set
@@ -168,7 +174,7 @@ impl Default for Context {
 impl TryFrom<&str> for Context {
     type Error = &'static str;
 
-    /// Creates a [`Context`] from the second part of the FEN string (the
+    /// Creates a [`Context`] from the second part of a FEN string (the
     /// part after the piece setup description).
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let elements = value.split(' ').collect::<Vec<&str>>();
