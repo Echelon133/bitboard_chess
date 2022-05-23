@@ -1,6 +1,8 @@
+//! This module implements structs representing piece kinds, colors and pieces themselves.
+
 use std::{fmt::Display, ops::Not};
 
-/// Represents all types of pieces that can be found on the chessboard.
+/// A kind of pieces that can be found on the chessboard.
 #[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Kind {
     Pawn,
@@ -13,11 +15,19 @@ pub enum Kind {
 
 impl Kind {
     /// Returns the index of the piece kind.
+    ///
+    /// Currently:
+    /// - pawn has index 0
+    /// - knight has index 1
+    /// - bishop has index 2
+    /// - rook has index 3
+    /// - queen has index 4
+    /// - king has index 5
     pub fn index(&self) -> usize {
         *self as usize
     }
 
-    /// Returns the lowercase ascii character that represents the kind of the piece.
+    /// Returns a lowercase ascii character that represents the kind of the piece.
     ///
     /// This character is consistent with the way pieces in FEN format are represented.
     /// This means that:
@@ -43,8 +53,9 @@ impl Kind {
 impl TryFrom<usize> for Kind {
     type Error = &'static str;
 
-    /// Converts an index into a [`Kind`]. Any value bigger than 5
-    /// cannot be converted and results in an error.
+    /// Converts an index into a [`Kind`].
+    ///
+    /// Any value bigger than 5 cannot be converted, which results in an error.
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         let val = match value {
             0 => Kind::Pawn,
@@ -65,10 +76,10 @@ impl TryFrom<usize> for Kind {
 impl TryFrom<char> for Kind {
     type Error = &'static str;
 
-    /// Converts a character into a [`Kind`]. Expected characters
-    /// are consistent with the characters used to represent pieces
-    /// in the FEN format.
-    /// Both lower- and uppercase characters are allowed.
+    /// Converts a character into a [`Kind`].
+    ///
+    /// Expected characters are consistent with the characters used to represent pieces
+    /// in the FEN format. Both lower- and uppercase characters are allowed.
     fn try_from(value: char) -> Result<Self, Self::Error> {
         let kind = match value.to_ascii_lowercase() {
             'p' => Kind::Pawn,
@@ -83,7 +94,7 @@ impl TryFrom<char> for Kind {
     }
 }
 
-/// Represents colors of pieces that can be found on the chessboard.
+/// A color of pieces.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Color {
     Black,
@@ -102,7 +113,7 @@ impl Not for Color {
     }
 }
 
-/// Represents a chess piece.
+/// A chess piece.
 #[derive(Debug, PartialEq, Hash, Eq)]
 pub struct Piece {
     kind: Kind,
@@ -110,7 +121,7 @@ pub struct Piece {
 }
 
 impl Piece {
-    /// Creates an immutable piece object from given [`Kind`] and [`Color`] arguments.
+    /// Creates an immutable [`Piece`] being of the given [`Kind`] and [`Color`].
     pub const fn new(kind: Kind, color: Color) -> Self {
         Self { kind, color }
     }
@@ -141,6 +152,7 @@ impl TryFrom<char> for Piece {
     type Error = &'static str;
 
     /// Takes an ascii character and tries to convert it to a [`Piece`].
+    ///
     /// This has the same rules of conversion as in the FEN format, i.e.
     /// there are 6 characters that represent kinds of pieces:
     /// - 'p' becomes a pawn
