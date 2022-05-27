@@ -1,11 +1,110 @@
+//! This module implements a struct which holds information about the placement of pieces
+//! on a board.
+//!
+//! `Board` stores the information that can be found in the first part of every FEN
+//! string (before the first space).
+
 use std::fmt::Debug;
 
 use crate::bitboard;
 use crate::piece;
 use crate::square;
 
-/// Represents the chessboard on a very low level. Only contains methods
-/// that either read or manipulate the state of the board (what pieces are placed where).
+/// A board which only stores information about the placement of pieces.
+///
+/// `Board` simply stores information about the piece placement and does not
+/// validate/verify its modifications.
+///
+/// # Internal representation 
+///
+/// Internally, a `Board` contains 14 bitboards:
+/// - 12 bitboards responsible for storing information about squares occupied by a piece of certain color (6 kinds times 2 colors)
+/// - 2 bitboards responsible for storing information about squares occupied by all pieces of a certain color
+/// 
+/// ### Example internal bitboards for pieces
+/// A bitboard which holds the initial position of white pawns:
+/// ```compile_fail
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 11111111
+/// 00000000
+/// ```
+/// A bitboard which holds the initial position of black pawns:
+/// ```compile_fail
+/// 00000000
+/// 11111111
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// ```
+///
+/// ### Example internal bitboards for colors
+///
+/// A bitboard which represents all squares occupied by the white pieces (initial position):
+/// ```compile_fail
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 11111111
+/// 11111111
+/// ```
+///
+/// A bitboard which represents all squares occupied by the black pieces (inital position):
+/// ```compile_fail
+/// 11111111
+/// 11111111
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// 00000000
+/// ```
+///
+/// # Example usage
+///
+/// ```
+/// use bitboard_chess::board::Board;
+/// use bitboard_chess::square::Square;
+/// use bitboard_chess::piece::Piece;
+///
+/// // create a default board, which holds information about all 32 pieces that are
+/// // initially placed on the board when a new game starts
+/// let mut board: Board = Default::default();
+/// 
+/// // check if e4 is empty
+/// let e4_empty = board.is_square_empty(Square::try_from("e4").unwrap());
+/// assert!(e4_empty);
+///
+/// // count pieces on the board
+/// let n_pieces = board.count_all_pieces();
+/// assert_eq!(n_pieces, 32u8);
+///
+/// // check if there is a white pawn on e2
+/// let e2 = board.get_piece(Square::try_from("e2").unwrap());
+/// assert_eq!(e2, Some(Piece::try_from('P').unwrap()));
+///
+/// // remove the e2 pawn from the board
+/// let pawn = board.remove_piece(Square::try_from("e2").unwrap());
+///
+/// // place the e2 pawn on the e4 square
+/// board.place_piece(Square::try_from("e4").unwrap(), &pawn.unwrap());
+///
+/// // check if e4 is not empty anymore
+/// let e4_empty = board.is_square_empty(Square::try_from("e4").unwrap());
+/// assert!(!e4_empty);
+/// ```
+///
 #[derive(Clone, Copy)]
 pub struct Board {
     // Both white_pieces and black_pieces are arrays of 6 elements, with every element
@@ -17,7 +116,7 @@ pub struct Board {
     //
     // These arrays should be accessed like this:
     // let kind = piece::Kind::King;
-    // self.white_pieces[kind.index()]
+    // let white_king_squares = self.white_pieces[kind.index()]
     //
     white_pieces: [bitboard::Bitboard; 6],
     black_pieces: [bitboard::Bitboard; 6],
@@ -36,9 +135,10 @@ impl Board {
         }
     }
 
-    /// Places a piece on the given [`square::Square`] of the board and returns an
-    /// [`Option`] which might contain a [`piece::Piece`] that was previously
-    /// on that square. Returns [`None`] it the taken square was empty.
+    /// Places a piece on the given `square` of the board and returns an
+    /// `Option` which might contain a [`piece::Piece`] that occupied that square before
+    /// and got replaced as a result of this method's invocation. If the square where the
+    /// piece got placed wasn't occupied, `None` is returned.
     #[inline(always)]
     pub fn place_piece(
         &mut self,
@@ -58,8 +158,9 @@ impl Board {
         removed_piece
     }
 
-    /// Removes a piece from the [`square::Square`] and returns [`Some`]
-    /// that contains that piece. If the square was empty, returns [`None`].
+    /// Removes a piece from the `square` and returns an `Option` which
+    /// contains that piece. If the square is empty, board's state is not changed 
+    /// and `None` is returned.
     #[inline(always)]
     pub fn remove_piece(&mut self, square: square::Square) -> Option<piece::Piece> {
         match self.get_piece(square) {
@@ -78,9 +179,8 @@ impl Board {
         }
     }
 
-    /// Returns [`Some`] that contains the piece that is placed on the
-    /// [`square::Square`] given as an argument. If the square is empty, [`None`]
-    /// is returned.
+    /// Checks what piece occupies the `square` and returns an `Option` which
+    /// contains information about that piece. If the square is empty, `None` is returned.
     #[inline(always)]
     pub fn get_piece(&self, square: square::Square) -> Option<piece::Piece> {
         if self.is_square_empty(square) {
@@ -119,7 +219,7 @@ impl Board {
         }
     }
 
-    /// Returns [`true`] if the given [`square::Square`] is empty, [`false`] if it's taken.
+    /// Checks if the `square` on the board is not occupied.
     #[inline(always)]
     pub fn is_square_empty(&self, square: square::Square) -> bool {
         // bitwise OR of both bitboards that represent taken squares results
@@ -138,7 +238,8 @@ impl Board {
         self.white_taken.count_set() + self.black_taken.count_set()
     }
 
-    /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`].
+    /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`] 
+    /// on the board.
     #[inline(always)]
     pub fn get_piece_bitboard(&self, piece: &piece::Piece) -> &bitboard::Bitboard {
         let piece_array = match piece.get_color() {
@@ -148,7 +249,8 @@ impl Board {
         &piece_array[piece.get_kind().index()]
     }
 
-    /// Returns a mutable reference to the bitboard that represents a [`piece::Piece`].
+    /// Returns a mutable reference to the bitboard that represents a [`piece::Piece`]
+    /// on the board.
     #[inline(always)]
     fn get_piece_bitboard_mut(&mut self, piece: &piece::Piece) -> &mut bitboard::Bitboard {
         let piece_array = match piece.get_color() {
@@ -159,7 +261,7 @@ impl Board {
     }
 
     /// Returns an immutable reference to the bitboard that represens squares taken by
-    /// the given color.
+    /// the given `color`.
     #[inline(always)]
     pub fn get_squares_taken(&self, color: piece::Color) -> &bitboard::Bitboard {
         match color {
@@ -169,7 +271,7 @@ impl Board {
     }
 
     /// Returns a mutable reference to the bitboard that represents squares taken by
-    /// the given color.
+    /// the given `color`.
     #[inline(always)]
     fn get_squares_taken_mut(&mut self, color: piece::Color) -> &mut bitboard::Bitboard {
         match color {
@@ -178,7 +280,9 @@ impl Board {
         }
     }
 
-    /// Returns a pair of (white_taken, black_taken) bitboards.
+    /// Returns a pair of bitboards, where the first bitboard represent all squares
+    /// occupied by the white pieces, and the second bitboard represents all squares
+    /// occupied by the black pieces.
     pub fn get_squares_taken_pair(&self) -> (bitboard::Bitboard, bitboard::Bitboard) {
         (self.white_taken, self.black_taken)
     }
@@ -187,8 +291,16 @@ impl Board {
 impl TryFrom<&str> for Board {
     type Error = &'static str;
 
-    /// Parses a partial FEN string (only the part that describes where to put
-    /// pieces) and returns a [`Board`] that represents that piece setup.
+    /// Parses a partial FEN string (only the part that describes piece placement) 
+    /// and returns a [`Board`] that represents that piece setup.
+    ///
+    /// # Example
+    /// ```
+    /// use bitboard_chess::board::Board;
+    ///
+    /// let board = Board::try_from("8/pppp4/8/8/8/8/PPPP4/8").unwrap();
+    /// assert_eq!(board.count_all_pieces(), 8u8);
+    /// ```
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let ranks = value.split('/').collect::<Vec<&str>>();
 
@@ -260,7 +372,7 @@ impl TryFrom<&str> for Board {
 }
 
 impl Default for Board {
-    /// Returns a [`Board`] with the starting position already setup.
+    /// Returns a [`Board`] with the starting position already set up.
     fn default() -> Self {
         Board::try_from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").unwrap()
     }
