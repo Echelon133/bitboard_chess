@@ -1,3 +1,11 @@
+//! This module contains all functions which are used during pseudo-legal move generation and
+//! during checking moves for their legality.
+//!
+//! All move generating functions return an iterator which gives out all pseudo-legal moves of a
+//! particular piece in a particular position on the board. These pseudo-legal moves have to be 
+//! checked for their legality (e.g. they mustn't put player's own king
+//! in check, mustn't allow illegal castling, etc.) before they are played on the board.
+
 use crate::bitboard;
 use crate::board;
 use crate::context;
@@ -6,7 +14,8 @@ use crate::moves;
 use crate::piece;
 use crate::square;
 
-/// Iterator over pseudo-legal moves of pieces.
+/// An iterator over pseudo-legal moves of pieces. Has two possible modes of work: one for
+/// generating pawn promotion moves and one for generating the rest of the moves.
 ///
 /// If `promoting` is set to true, each pair of (start_square, target_square) is
 /// generated four times, for each possible kind of piece that can be a promotion goal.
@@ -21,6 +30,11 @@ pub struct MoveIter {
 }
 
 impl MoveIter {
+    /// Creates an iterator which gives out [`moves::UCIMove`] which start on
+    /// `start_square` and end on squares that are set in `targets` bitboard.
+    ///
+    /// If `promoting` is set to `true`, for every square set in `targets` bitboard there
+    /// are 4 moves (one for each piece that can be a target of pawn promotion).
     pub fn new(start_square: square::Square, targets: bitboard::Bitboard, promoting: bool) -> Self {
         Self {
             start_square,
@@ -34,6 +48,14 @@ impl MoveIter {
 impl Iterator for MoveIter {
     type Item = moves::UCIMove;
 
+    /// Advances the iterator and returns the next pseudo-legal move.
+    ///
+    /// Returns [`None`] when iteration is finished.
+    ///
+    /// If `promoting` was set to `true`, each move is given out in 4 variants,
+    /// one for each piece kind that can appear on the board during pawn promotion.
+    /// Otherwise, if the iterator's `promoting` was set to `false`, every move is
+    /// given out only once.
     fn next(&mut self) -> Option<Self::Item> {
         let count = self.targets.count_set();
 
@@ -115,10 +137,15 @@ impl ExactSizeIterator for MoveIter {
     }
 }
 
-/// Finds all pseudo-legal moves for the pawn on the given square.
-/// This function assumes that a piece that is placed on the given
-/// square is actually a pawn. It does not check whether that is true,
-/// so incorrect call to this function will yield invalid moves.
+/// Finds all pseudo-legal moves of a `color` colored pawn on the given `piece_square`. 
+/// Provided `context` is required for determining if there is an en passant move available.
+///
+/// This function assumes that a piece that is placed on the `piece_square` is actually
+/// a pawn of `color` color. It does not check whether that is true, so incorrect call 
+/// to this function will yield invalid moves.
+///
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
 ///
 /// # More info
 /// [How to calculate pawn pushes](https://www.chessprogramming.org/Pawn_Pushes_(Bitboards))
@@ -220,23 +247,16 @@ pub fn find_pawn_moves(
     }
 }
 
-/// Finds all pseudo-legal moves for the knight on the given square.
-/// This function assumes that a piece that is placed on the given
-/// square is actually a knight and does not check whether that's true.
+/// Finds all pseudo-legal moves of a `color` colored knight on the given `piece_square`.
 ///
-/// This implementation uses precalculated attack patterns, so that
-/// instead of calculating them on-the-fly every call, they can
-/// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`KNIGHT_ATTACK_PATTERNS`]).
+/// This function assumes that a piece that is placed on the given `piece_square` is 
+/// actually a knight of `color` color. It does not check whether that is true,
+/// so incorrect call to this function will yield invalid moves.
 ///
-/// The only thing that needs to be done once there is an attack pattern
-/// ready, is to bitwise AND that attack pattern with bitwise NOT of pieces that
-/// have the same color as the knight for which we calculate moves.
-/// That operations only leaves those bits of the attack pattern that represent
-/// either empty squares or squares of the opponent.
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
 ///
 /// # More info
-///
 /// [How to calculate knight moves](https://www.chessprogramming.org/Knight_Pattern)
 ///
 pub fn find_knight_moves(
@@ -260,27 +280,28 @@ pub fn find_knight_moves(
     MoveIter::new(piece_square, attack_bitboard, false)
 }
 
-/// Finds all pseudo-legal moves for the king on the given square.
-/// This function assumes that a piece that is placed on the given square
-/// is actually a king and does not check whether that's true.
+/// Finds all pseudo-legal moves of a `color` colored king on the given 
+/// `piece_square`. Provided `context` is required for determining if the king
+/// has rights to castle.
 ///
-/// This implementation uses precalculated attack patterns, so that
-/// instead of calculating them on-the-fly every call, they can
-/// simply be accessed using the square's index (which is consistent
-/// with the order of attack patterns in [`KING_ATTACK_PATTERNS`]).
+/// This function assumes that a piece that is placed on the given `piece_square`
+/// is actually a king of `color` color. It does not check whether that is true,
+/// so incorrect call to this function will yield invalid moves.
+///
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
 ///
 /// # More info
-///
 /// [How to calculate king moves](https://www.chessprogramming.org/King_Pattern)
 ///
 pub fn find_king_moves(
     piece_square: square::Square,
-    own_color: piece::Color,
+    color: piece::Color,
     white_taken: bitboard::Bitboard,
     black_taken: bitboard::Bitboard,
     context: &context::Context,
 ) -> MoveIter {
-    let own_pieces = match own_color {
+    let own_pieces = match color {
         piece::Color::White => white_taken,
         piece::Color::Black => black_taken,
     };
@@ -298,7 +319,7 @@ pub fn find_king_moves(
     // is on its original square, therefore g1/g8 and c1/c8 target
     // squares can be calculated by adding/subtracting
     // 2 from the index of the king's square
-    if context.can_castle(own_color, context::Side::Kingside) {
+    if context.can_castle(color, context::Side::Kingside) {
         // two squares between the king and the kingside rook need to be empty
         // to make castling possible
         let f_file_square = square::Square::from((index + 1) as u8);
@@ -308,7 +329,7 @@ pub fn find_king_moves(
             attack_bitboard.set(g_file_square);
         }
     }
-    if context.can_castle(own_color, context::Side::Queenside) {
+    if context.can_castle(color, context::Side::Queenside) {
         // three squares between the king and the queenside rook need to be empty
         // to make castling possible
         let b_file_square = square::Square::from((index - 3) as u8);
@@ -438,8 +459,7 @@ macro_rules! negative_ray_attack {
     }};
 }
 
-/// Finds all pseudo-legal moves for a sliding piece that only moves
-/// on its file or rank.
+/// Finds all pseudo-legal moves of a sliding piece that only moves on its file or rank.
 /// This can be either a rook or a queen.
 ///
 /// # More info
@@ -472,10 +492,14 @@ fn find_file_rank_moves(
     all_attacks
 }
 
-/// Finds all pseudo-legal moves for the rook on the given square.
-/// This function assumes that a piece that is placed on the given square
-/// is actually a rook. It does not check whether that is true,
-/// so incorrect call to this function will yield invalid moves.
+/// Finds all pseudo-legal moves of a `color` colored rook on the given `piece_square`.
+///
+/// This function assumes that a piece that is placed on the `piece_square` is actually
+/// a rook of `color` color. It does not check whether that is true, so incorrect call 
+/// to this function will yield invalid moves.
+///
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
 ///
 pub fn find_rook_moves(
     piece_square: square::Square,
@@ -487,9 +511,8 @@ pub fn find_rook_moves(
     MoveIter::new(piece_square, attack_bitboard, false)
 }
 
-/// Finds all pseudo-legal moves for a sliding piece that moves
-/// diagonally.
-/// This can be either a bishop or a queen.
+/// Finds all pseudo-legal moves of a sliding piece that moves diagonally. This can be 
+/// either a bishop or a queen.
 ///
 /// # More info
 /// [How to calculate for positive rays](https://www.chessprogramming.org/Classical_Approach#Conditional)
@@ -520,10 +543,15 @@ fn find_diagonal_moves(
     all_attacks
 }
 
-/// Finds all pseudo-legal moves for the bishop on the given square.
-/// This function assumes that a piece that is placed on the given square
-/// is actually a bishop. It does not check whether that is true,
-/// so incorrect call to this function will yield invalid moves.
+/// Finds all pseudo-legal moves of a `color` colored bishop on the given `piece_square`.
+///
+/// This function assumes that a piece that is placed on the `piece_square` is actually
+/// a bishop. It does not check whether that is true, so incorrect call to this function 
+/// will yield invalid moves.
+///
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
+///
 pub fn find_bishop_moves(
     piece_square: square::Square,
     color: piece::Color,
@@ -534,10 +562,15 @@ pub fn find_bishop_moves(
     MoveIter::new(piece_square, attack_bitboard, false)
 }
 
-/// Finds all pseudo-legal moves for the queen on the given square.
-/// This function assumes that a piece that is placed on the given square
-/// is actually a queen. It does not check whether that is true,
-/// so incorrect call to this function will yield invalid moves.
+/// Finds all pseudo-legal moves of a `color` colored queen on the given `piece_square`.
+///
+/// This function assumes that a piece that is placed on the `piece_square` is actually
+/// a queen. It does not check whether that is true, so incorrect call to this function 
+/// will yield invalid moves.
+///
+/// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
+/// white and black pieces, respectively.
+///
 pub fn find_queen_moves(
     piece_square: square::Square,
     color: piece::Color,
@@ -607,7 +640,7 @@ macro_rules! positive_ray_attacks_piece {
     }};
 }
 
-/// Generates code that checks whether a negative ray cast from the square
+/// Generates code that checks whether a negative ray cast from the given square
 /// hits an unblocked enemy piece.
 ///
 /// # How it works - an example
@@ -663,10 +696,11 @@ macro_rules! negative_ray_attacks_piece {
     }};
 }
 
-/// Checks if the square of particular color is being attacked on the given [`board::Board`].
+/// Checks if the `square` occupied by a piece of `piece_color` is being attacked 
+/// on the given [`board::Board`].
 ///
-/// This function backtraces from the piece's position to find any unblocked enemy pieces,
-/// then it checks whether the found piece's moveset allows it to attack the checked piece.
+/// This function backtraces from the piece's position to find any unblocked enemy pieces
+/// which attack it.
 ///
 /// # Panics
 /// This function panics if there is no piece of the given color on the board.
@@ -765,8 +799,8 @@ pub fn is_square_attacked(
 
 /// Checks if the king of particular color is in check on the given [`board::Board`].
 ///
-/// This function backtraces from the king's position to find any unblocked enemy pieces,
-/// then it checks whether the found piece's moveset allows it to attack the king.
+/// This function backtraces from the king's position to find any unblocked enemy pieces
+/// which attack it.
 ///
 /// # Panics
 /// This function panics if there is no king of the given color on the board.
