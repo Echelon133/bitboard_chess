@@ -149,7 +149,7 @@ impl TryFrom<char> for Rank {
     type Error = &'static str;
 
     /// Converts a single numeric character from '1'..='8' range into
-    /// a [`Rank`]. 
+    /// a [`Rank`].
     ///
     /// Conversion rules:
     /// - '1' gives Rank::R1
@@ -226,9 +226,9 @@ impl Square {
         self.square_index as usize
     }
 
-    /// Returns the [`Rank`] of the square. 
+    /// Returns the [`Rank`] of the square.
     ///
-    /// **NOTE**: this is recalculated on every call because the [`Square`] 
+    /// **NOTE**: this is recalculated on every call because the [`Square`]
     /// internally only stores its index.
     pub fn get_rank(&self) -> Rank {
         // unwrap right away, because it's guaranteed that the calculated index
@@ -236,9 +236,9 @@ impl Square {
         Rank::try_from(self.rank_index()).unwrap()
     }
 
-    /// Returns the [`File`] of the square. 
+    /// Returns the [`File`] of the square.
     ///
-    /// **NOTE**: this is recalculated on every call because the [`Square`] 
+    /// **NOTE**: this is recalculated on every call because the [`Square`]
     /// internally only stores its index.
     pub fn get_file(&self) -> File {
         // unwrap right away, because it's guaranteed that the calculated index
@@ -246,7 +246,7 @@ impl Square {
         File::try_from(self.file_index()).unwrap()
     }
 
-    /// Returns a (rank, file) pair of indexes. 
+    /// Returns a (rank, file) pair of indexes.
     ///
     /// For example:
     /// - 'a1' is represented as (0, 0)
@@ -266,7 +266,7 @@ impl From<u8> for Square {
 impl TryFrom<&str> for Square {
     type Error = &'static str;
 
-    /// Converts values such as 'a1', 'g5', 'c5', etc. 
+    /// Converts values such as 'a1', 'g5', 'c5', etc.
     /// into actual [`Square`] that represents that square
     /// on the board.
     fn try_from(value: &str) -> Result<Self, Self::Error> {

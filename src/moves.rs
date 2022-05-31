@@ -86,8 +86,8 @@ impl Debug for Move {
 /// - "e1c1"
 /// - "e7d8n"
 /// - "e7e8q"
-/// 
-/// All moves which are represented by 5 characters are moves that promote pawns. 
+///
+/// All moves which are represented by 5 characters are moves that promote pawns.
 /// The last character symbolizes the type of piece that is supposed to appear on the
 /// board during the promotion.
 ///
@@ -170,7 +170,7 @@ impl TryFrom<&str> for UCIMove {
 /// A history entry of a move that has appeared on the chessboard.
 ///
 /// Every variant of this enum contains a [`context::Context`]. This field should be used for
-/// storing the copy of chessboard's context state that was valid for the previous move. 
+/// storing the copy of chessboard's context state that was valid for the previous move.
 /// Undoing a move should not only include moving pieces to their previous squares, but also
 /// restoring the context that was valid for the previous board state.
 #[derive(Debug, PartialEq, Eq, Hash)]

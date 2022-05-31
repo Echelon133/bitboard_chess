@@ -15,12 +15,12 @@ use crate::square;
 /// `Board` simply stores information about the piece placement and does not
 /// validate/verify its modifications.
 ///
-/// # Internal representation 
+/// # Internal representation
 ///
 /// Internally, a `Board` contains 14 bitboards:
 /// - 12 bitboards responsible for storing information about squares occupied by a piece of certain color (6 kinds times 2 colors)
 /// - 2 bitboards responsible for storing information about squares occupied by all pieces of a certain color
-/// 
+///
 /// ### Example internal bitboards for pieces
 /// A bitboard which holds the initial position of white pawns:
 /// ```compile_fail
@@ -81,7 +81,7 @@ use crate::square;
 /// // create a default board, which holds information about all 32 pieces that are
 /// // initially placed on the board when a new game starts
 /// let mut board: Board = Default::default();
-/// 
+///
 /// // check if e4 is empty
 /// let e4_empty = board.is_square_empty(Square::try_from("e4").unwrap());
 /// assert!(e4_empty);
@@ -159,7 +159,7 @@ impl Board {
     }
 
     /// Removes a piece from the `square` and returns an `Option` which
-    /// contains that piece. If the square is empty, board's state is not changed 
+    /// contains that piece. If the square is empty, board's state is not changed
     /// and `None` is returned.
     #[inline(always)]
     pub fn remove_piece(&mut self, square: square::Square) -> Option<piece::Piece> {
@@ -238,7 +238,7 @@ impl Board {
         self.white_taken.count_set() + self.black_taken.count_set()
     }
 
-    /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`] 
+    /// Returns an immutable reference to the bitboard that represents a [`piece::Piece`]
     /// on the board.
     #[inline(always)]
     pub fn get_piece_bitboard(&self, piece: &piece::Piece) -> &bitboard::Bitboard {
@@ -291,7 +291,7 @@ impl Board {
 impl TryFrom<&str> for Board {
     type Error = &'static str;
 
-    /// Parses a partial FEN string (only the part that describes piece placement) 
+    /// Parses a partial FEN string (only the part that describes piece placement)
     /// and returns a [`Board`] that represents that piece setup.
     ///
     /// # Example

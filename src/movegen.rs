@@ -2,7 +2,7 @@
 //! during checking moves for their legality.
 //!
 //! All move generating functions return an iterator which gives out all pseudo-legal moves of a
-//! particular piece in a particular position on the board. These pseudo-legal moves have to be 
+//! particular piece in a particular position on the board. These pseudo-legal moves have to be
 //! checked for their legality (e.g. they mustn't put player's own king
 //! in check, mustn't allow illegal castling, etc.) before they are played on the board.
 
@@ -137,11 +137,11 @@ impl ExactSizeIterator for MoveIter {
     }
 }
 
-/// Finds all pseudo-legal moves of a `color` colored pawn on the given `piece_square`. 
+/// Finds all pseudo-legal moves of a `color` colored pawn on the given `piece_square`.
 /// Provided `context` is required for determining if there is an en passant move available.
 ///
 /// This function assumes that a piece that is placed on the `piece_square` is actually
-/// a pawn of `color` color. It does not check whether that is true, so incorrect call 
+/// a pawn of `color` color. It does not check whether that is true, so incorrect call
 /// to this function will yield invalid moves.
 ///
 /// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
@@ -249,7 +249,7 @@ pub fn find_pawn_moves(
 
 /// Finds all pseudo-legal moves of a `color` colored knight on the given `piece_square`.
 ///
-/// This function assumes that a piece that is placed on the given `piece_square` is 
+/// This function assumes that a piece that is placed on the given `piece_square` is
 /// actually a knight of `color` color. It does not check whether that is true,
 /// so incorrect call to this function will yield invalid moves.
 ///
@@ -280,7 +280,7 @@ pub fn find_knight_moves(
     MoveIter::new(piece_square, attack_bitboard, false)
 }
 
-/// Finds all pseudo-legal moves of a `color` colored king on the given 
+/// Finds all pseudo-legal moves of a `color` colored king on the given
 /// `piece_square`. Provided `context` is required for determining if the king
 /// has rights to castle.
 ///
@@ -495,7 +495,7 @@ fn find_file_rank_moves(
 /// Finds all pseudo-legal moves of a `color` colored rook on the given `piece_square`.
 ///
 /// This function assumes that a piece that is placed on the `piece_square` is actually
-/// a rook of `color` color. It does not check whether that is true, so incorrect call 
+/// a rook of `color` color. It does not check whether that is true, so incorrect call
 /// to this function will yield invalid moves.
 ///
 /// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
@@ -511,7 +511,7 @@ pub fn find_rook_moves(
     MoveIter::new(piece_square, attack_bitboard, false)
 }
 
-/// Finds all pseudo-legal moves of a sliding piece that moves diagonally. This can be 
+/// Finds all pseudo-legal moves of a sliding piece that moves diagonally. This can be
 /// either a bishop or a queen.
 ///
 /// # More info
@@ -546,7 +546,7 @@ fn find_diagonal_moves(
 /// Finds all pseudo-legal moves of a `color` colored bishop on the given `piece_square`.
 ///
 /// This function assumes that a piece that is placed on the `piece_square` is actually
-/// a bishop. It does not check whether that is true, so incorrect call to this function 
+/// a bishop. It does not check whether that is true, so incorrect call to this function
 /// will yield invalid moves.
 ///
 /// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
@@ -565,7 +565,7 @@ pub fn find_bishop_moves(
 /// Finds all pseudo-legal moves of a `color` colored queen on the given `piece_square`.
 ///
 /// This function assumes that a piece that is placed on the `piece_square` is actually
-/// a queen. It does not check whether that is true, so incorrect call to this function 
+/// a queen. It does not check whether that is true, so incorrect call to this function
 /// will yield invalid moves.
 ///
 /// Bitboards `white_taken` and `black_taken` should hold all squares occupied by
@@ -696,7 +696,7 @@ macro_rules! negative_ray_attacks_piece {
     }};
 }
 
-/// Checks if the `square` occupied by a piece of `piece_color` is being attacked 
+/// Checks if the `square` occupied by a piece of `piece_color` is being attacked
 /// on the given [`board::Board`].
 ///
 /// This function backtraces from the piece's position to find any unblocked enemy pieces
