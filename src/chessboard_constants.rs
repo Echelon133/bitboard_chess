@@ -1,3 +1,5 @@
+//! This module contains constants which are used by the chessboard module.
+
 use crate::square;
 
 /// Squares that create a path between the white king and H1 rook,
