@@ -1,3 +1,54 @@
+//! This module implements a playable chessboard.
+//!
+//! `Chessboard` functionalities:
+//! - creating board setups from FEN strings
+//! - serializing boards into FEN strings
+//! - iterating over all legal moves in a position
+//! - executing legal moves
+//! - ending games prematurely (resigning/agreed draws)
+//! - probing for the result of the game
+//!
+//! ```
+//! use bitboard_chess::chessboard::{Chessboard, ChessboardError, GameResult};
+//! use bitboard_chess::moves::UCIMove;
+//!
+//! let mut board: Chessboard = Default::default();
+//!
+//! // make a valid move
+//! let mv = UCIMove::try_from("e2e4").unwrap();
+//! let result = board.execute_move(&mv);
+//! assert!(result.is_ok());
+//!
+//! // try to make an illegal move
+//! let mv = UCIMove::try_from("e4e5").unwrap();
+//! let result = board.execute_move(&mv);
+//! assert!(result.is_err());
+//! assert_eq!(result.unwrap_err(), ChessboardError::IllegalMove);
+//!
+//! // serialize the current position into a FEN string
+//! let fen = board.as_fen();
+//! assert_eq!(
+//!     "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+//!     fen
+//! );
+//!
+//! // count all legal moves of the current player (black pieces)
+//! let num_legal_moves = board.iter_legal_moves().count();
+//! assert_eq!(num_legal_moves, 20);
+//!
+//! // force the game to end with a draw
+//! board.set_draw();
+//!
+//! // check if the game's result is set
+//! let game_result = board.get_game_result();
+//! assert_eq!(game_result, Some(GameResult::Draw));
+//!
+//! // try to make a move despite the game being over
+//! let mv = UCIMove::try_from("e7e5").unwrap();
+//! let result = board.execute_move(&mv);
+//! assert_eq!(result.unwrap_err(), ChessboardError::GameAlreadyFinished);
+//! ```
+
 use std::fmt::Debug;
 
 use crate::bitboard;
@@ -9,18 +60,17 @@ use crate::moves;
 use crate::piece;
 use crate::square;
 
-/// Iterator over [`movegen::MoveIter`] iterators. There is a single [`movegen::MoveIter`] for
-/// every single square that's occupied by the player who is about to make a move.
+/// An iterator over [`movegen::MoveIter`] iterators.
+///
+/// There is a single [`movegen::MoveIter`] for every single square that's
+/// occupied by the player who is about to make a move.
 ///
 /// # Example
 /// If the board has a default setup, and white is about to play, `MoveIterIter` will contain
 /// 20 iterators (one for every white piece on the board), and each [`movegen::MoveIter`]
-/// will give out moves of a single piece.
-///
-/// This iterator only calls movegen functions when `next()` is called, which means that
-/// the search for pseudo-legal moves of a particular piece only happens when it's necessary.
+/// will give out pseudo-legal moves of a single piece.
 #[derive(Clone, Copy)]
-pub struct MoveIterIter {
+struct MoveIterIter {
     color_to_play: piece::Color,
     own_pieces: bitboard::SquareIter,
     inner_board: board::Board,
@@ -42,6 +92,8 @@ impl MoveIterIter {
 impl Iterator for MoveIterIter {
     type Item = movegen::MoveIter;
 
+    /// Advances the iterator and gives out a `MoveIter` which contains all
+    /// pseudo-legal moves of a single piece on the board.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(occupied_square) = self.own_pieces.next() {
             let piece_kind = self
@@ -81,11 +133,10 @@ impl Iterator for MoveIterIter {
     }
 }
 
-/// Iterator over legal moves of the player that is currently making a move.
+/// An iterator over legal moves of the player who is currently making a move.
 ///
-/// It iterates over [`MoveIterIter`], which gives out iterators of pseudo-legal moves.
-/// It returns items as long as there are pseudo-legal moves that are verified as legal
-/// for the current position on the chessboard.
+/// This iterator returns items as long as there are pseudo-legal moves that are
+/// verified as legal for the current position on the chessboard.
 pub struct LegalMovesIter {
     iterators: MoveIterIter,
     current_iter: Option<movegen::MoveIter>,
@@ -93,7 +144,8 @@ pub struct LegalMovesIter {
 }
 
 impl LegalMovesIter {
-    pub fn new(mut iterators: MoveIterIter, board: Chessboard) -> Self {
+    /// Creates a `LegalMovesIter`.
+    fn new(mut iterators: MoveIterIter, board: Chessboard) -> Self {
         let current_iter = iterators.next();
         Self {
             iterators,
@@ -106,6 +158,10 @@ impl LegalMovesIter {
 impl Iterator for LegalMovesIter {
     type Item = moves::UCIMove;
 
+    /// Advances the iterator and returns a legal move that can be executed
+    /// on the board.
+    ///
+    /// If there are no more legal moves in the position, `None` is returned.
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match &mut self.current_iter {
@@ -132,21 +188,22 @@ impl Iterator for LegalMovesIter {
     }
 }
 
-/// Represents the end result of a game.
+/// The end result of a game.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum GameResult {
-    /// Contains the color which won by surrender of the opposite color.
+    /// Contains the color which won by resignation of the opposite color.
     SurrenderedWin(piece::Color),
     /// Contains the color which won by checkmating the opponent.
     Checkmate(piece::Color),
     Draw,
 }
 
-/// Holds information about a move that's been executed on the board.
+/// Information about a move that's been executed on the board.
 ///
-/// This struct is used for storing information that's used for verifying correctness
-/// of the implementation. All captures, en passants, castles, promotions and checks
-/// are being counted, so that they can be later compared to results of other chess engines.
+/// This struct stores information about all events that might happen during
+/// a move. These events include captures, en passants, castles, pawn promotions, 
+/// and checks. Counting these events enables fast verification of the correctness
+/// of the implementation.
 #[derive(Copy, Clone, Debug)]
 pub struct MoveInfo {
     pub captured_piece: bool,
@@ -156,30 +213,40 @@ pub struct MoveInfo {
     pub checked_opponent: bool,
 }
 
-/// Describes the result of a move. Apart from that, it carries debug information about captures,
-/// en passants, castles, promotions and checks that happened in that move.
+/// The result of a move on the board. It's used for signalizing whether a move
+/// has resulted in the game being over. 
+///
+/// Every variant carries [`MoveInfo`] which stores information about events that
+/// happened while executing a move. This includes captures, en passants, castles,
+/// pawn promotions, and checks.
 #[derive(Debug, Copy, Clone)]
 pub enum MoveResult {
+    /// The game has ended with a checkmate executed by the player whose color of
+    /// pieces is stored in the `winner` field.
     Checkmate {
         winner: piece::Color,
         info: MoveInfo,
     },
+    /// The game has ended with a draw (in case of a stalemate, `stalemate` is
+    /// set to `true`).
     Draw {
         stalemate: bool,
         info: MoveInfo,
     },
+    /// The game is not over yet.
     Continues {
         info: MoveInfo,
     },
 }
 
+/// Errors returned when `execute_move` method encounters a problem.
 #[derive(Debug, PartialEq)]
 pub enum ChessboardError {
     IllegalMove,
     GameAlreadyFinished,
 }
 
-/// Represents a playable chessboard.
+/// A playable chessboard implementation.
 ///
 /// This struct is responsible for:
 /// - holding information about pieces
@@ -187,7 +254,6 @@ pub enum ChessboardError {
 ///     been played on the board
 /// - providing methods for high-level manipulation of the board state
 /// - making sure the move that's being executed is legal
-///
 pub struct Chessboard {
     inner_board: board::Board,
     context: context::Context,
@@ -433,16 +499,24 @@ impl Chessboard {
         }
     }
 
-    /// Executes a move on the board. If the move is not legal, meaning:
+    /// Executes a legal move on the board. Returns a [`ChessboardError`] if the
+    /// move couldn't be executed for some reason. Otherwise [`MoveResult`] is
+    /// returned.
+    ///
+    /// If the move is not legal, meaning:
     /// - it's incorrect for the type of piece which is being moved
     /// - the color of the piece is not correct for that turn
     /// - it puts its own king in check
     ///
     /// then such a move is rejected and does not appear on the board.
-    /// Apart from that, this method updates the context of the chessboard, so that
-    /// the color of the next player is set (which might also update the fullmove counter).
+    /// 
+    /// After executing a legal move, this method updates the context of the chessboard. This
+    /// always includes flipping the color which is to play. Other context changes might include:
+    /// - incrementing halfmove and fullmove counters
+    /// - setting the en passant target
+    /// - updating the castling rights of players
     ///
-    /// Every move (except illegal ones) returns an `Ok` that contains a `MoveResult` with
+    /// Every move (except for illegal ones) returns an `Ok` that contains a `MoveResult` with
     /// information about what happend in that move (if there was a capture, en passant,
     /// castle, promotion, check). This information greatly improves the debugging experience.
     /// If the given move is illegal or the game is already finished, `Err` that contains
@@ -531,9 +605,8 @@ impl Chessboard {
         }
     }
 
-    /// Sets draw as the game result and returns `true`
-    /// if the game hadn't been already over when this method was called.
-    /// Otherwise `false` is returned and the game result is not changed.
+    /// Sets win as the game's final result and returns `true`. If the game already
+    /// had a game result, `false` is returned and the existing game result is not changed.
     pub fn set_win(&mut self, winner: piece::Color) -> bool {
         match self.end_result {
             Some(_) => false,
@@ -544,9 +617,8 @@ impl Chessboard {
         }
     }
 
-    /// Sets draw as the game result and returns `true`
-    /// if the game hadn't been already over when this method was called.
-    /// Otherwise `false` is returned and the game result is not changed.
+    /// Sets draw as the game's final result and returns `true`. If the game already
+    /// had a game result, `false` is returned and the existing game result is not changed.
     pub fn set_draw(&mut self) -> bool {
         match self.end_result {
             Some(_) => false,
@@ -558,13 +630,13 @@ impl Chessboard {
     }
 
     /// Returns `None` if the game is not over. If the game is over, `Some`
-    /// containing the [`GameResult`] is returned.
+    /// containing a [`GameResult`] is returned.
     pub fn get_game_result(&self) -> Option<GameResult> {
         self.end_result
     }
 
-    /// Returns true if the given move is a move that can appear on the board with its current
-    /// state.
+    /// Returns true if the given move is a legal move in the current position
+    /// on the board.
     ///
     /// This means, that the move:
     /// - has be start on a square that contains a piece
@@ -651,7 +723,6 @@ impl Chessboard {
     /// # Panics:
     /// This method panics if the move that's given to it is not even pseudo-legal,
     /// i.e. it wants to move a piece from a square that's not even occupied on the board.
-    ///
     fn is_move_legal(&mut self, m: &moves::UCIMove) -> bool {
         let own_color = self.context.get_color_to_play();
         let board_copy = self.clone_board();
@@ -711,7 +782,7 @@ impl Chessboard {
         legal
     }
 
-    /// Restores the previous [`context::Context`] and sets the board inner state
+    /// Restores the previous [`context::Context`] and sets the board's inner state
     /// to the state of the [`board::Board`] given as the argument.
     ///
     /// # Panics
@@ -736,8 +807,9 @@ impl Chessboard {
         self.end_result = None;
     }
 
-    /// Checks if the given piece and move of that piece describe castling. If they do, it returns
-    /// `Some` with the side of castling which is described. Otherwise it returns `None`.
+    /// Checks if the given piece and move of that piece describe castling. If they do,
+    /// it returns `Some` with the side of castling which is described.
+    /// Otherwise it returns `None`.
     #[inline(always)]
     fn is_castling(piece: &piece::Piece, m: &moves::Move) -> Option<context::Side> {
         if piece.get_kind() != piece::Kind::King {
@@ -981,7 +1053,7 @@ impl Chessboard {
         LegalMovesIter::new(pseudolegal, self.clone())
     }
 
-    /// Returns the chessboard state in the FEN format.
+    /// Serializes the current chessboard's position into a FEN string.
     pub fn as_fen(&self) -> String {
         let mut fen = String::new();
 
@@ -1019,6 +1091,7 @@ impl Chessboard {
 
 impl Default for Chessboard {
     /// Creates a [`Chessboard`] with a default setup of pieces.
+    ///
     /// The default chessboard is equivalent to a board started from this FEN:
     /// - "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     fn default() -> Self {
