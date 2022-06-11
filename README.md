@@ -1,6 +1,13 @@
 # bitboard\_chess
 Rust crate that implements a playable bitboard-based chessboard.
 
+## Features
+* serialization of chessboards into FEN strings
+* creation of chessboards from FEN strings
+* validation of moves
+* iteration of all moves that are legal in the current position
+* ending games prematurely (resignation/draws)
+
 ## Example use
 
 ```rust
