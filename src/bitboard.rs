@@ -1,3 +1,26 @@
+//! This module implements a data structure that's the foundation of
+//! the entire project, as it is used throughout it for multiple different purposes, all
+//! of which require very fast performance.
+//!
+//! Some of these purposes are:
+//! * representing all squares occupied by a color
+//! * representing all squares occupied by a piece of certain kind
+//! * representing all squares attacked by a piece
+//! * representing attack patterns of pieces
+//!
+//! # Possibilities
+//!
+//! Some functionalities that are implemented in this module:
+//! * find the index of the first bit that's set to 1
+//! * count all bits set to 1
+//! * find all bits that are common between two bitboards
+//! * sum bits of two bitboards
+//! * negate all bits of a bitboard
+//!
+//! # More information
+//! * [Chess bitboards on Wikipedia](https://en.wikipedia.org/wiki/Bitboard#Chess_bitboards)
+//! * [Chess bitboards on Chessprogramming](https://www.chessprogramming.org/Bitboards)
+
 use std::{
     fmt::Debug,
     ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr},
@@ -6,25 +29,64 @@ use std::{
 
 use crate::square;
 
-/// Represents the entire chessboard in 8 bytes, where each square is
+/// A bitboard which stores information about 64 squares of a chessboard.
+///
+/// The entire bitboard fits in 8 bytes, where each square is
 /// represented by a single bit.
 ///
-/// The ordering of bits is important, and in this implementation:
-/// - 'a1' is 0b0001 (the least significant bit)
+/// # Mapping of squares to bits
+/// The ordering of bits is important, and in this implementation square:
+/// - 'a1' is 0b0001 (only the least significant bit)
 /// - 'b1' is 0b0010
 /// - 'c1' is 0b0100
 /// - 'd1' is 0b1000
 /// - 'h8' is 0x8000000000000000 (only the most significant bit)
 ///
-/// The ordering goes left-to-right and bottom-to-top. [`square::Square`] holds
-/// its index (in range 0..=63) which is basically the number of bits of the bitboard
-/// that have to be shifted right to get to the bit that represents that square.
+/// The indexes grow from left to right and bottom to top (from perspective in which the
+/// 'a1' square is in the bottom left corner of the board).
+/// Each [`square::Square`] holds its index into the bitboard.
 ///
-/// If we want to get the value of the bit that represents the 'b1' square,
-/// we get the index of that square, which is 1. This means that to get the bit
-/// that represents that square we shift bitboard's bits to the right once
-/// and then we check whether the least significant bit after that shift is
-/// equal to 1.
+/// # Example
+///
+/// ```
+/// use bitboard_chess::bitboard::*;
+/// use bitboard_chess::square::Square;
+/// // creates an empty bitboard
+/// let mut bitboard = Bitboard::default();
+///
+/// // set the 'a1' bit
+/// bitboard.set(Square::try_from("a1").unwrap());
+///
+/// // set the 'h8' bit
+/// bitboard.set(Square::try_from("h8").unwrap());
+///
+/// // check if the 'a1' bit is set
+/// let is_a1_set = bitboard.is_set(Square::try_from("a1").unwrap());
+/// assert!(is_a1_set);
+///
+/// // find the index of the first set bit (search starting from
+/// // the least significant bit towards the most significant bit)
+/// let index_forward = bitboard.bitscan_forward();
+/// assert_eq!(index_forward, 0u8);
+///
+/// // find the index of the first set bit (search starting from
+/// // the most significant bit towards the least significant bit)
+/// let index_reverse = bitboard.bitscan_reverse();
+/// assert_eq!(index_reverse, 63u8);
+///
+/// // get the iterator over the squares represented by lit bits
+/// let mut iter = bitboard.iter();
+/// assert_eq!(iter.next(), Some(Square::try_from("a1").unwrap()));
+/// assert_eq!(iter.next(), Some(Square::try_from("h8").unwrap()));
+/// assert_eq!(iter.next(), None);
+///
+/// // clear the 'a1' bit
+/// bitboard.clear(Square::try_from("a1").unwrap());
+///
+/// // count all set bits
+/// let all_set = bitboard.count_set();
+/// assert_eq!(all_set, 1u8);
+/// ```
 ///
 #[derive(Copy, Clone, PartialEq)]
 pub struct Bitboard {
@@ -32,59 +94,59 @@ pub struct Bitboard {
 }
 
 impl Bitboard {
-    /// Returns a [`bool`] which informs if the bit of the given
-    /// square is set.
+    /// Returns `true` if the `square` is set on the bitboard. Otherwise
+    /// returns `false`.
     pub fn is_set(&self, square: square::Square) -> bool {
         ((self.bits >> square.get_index()) & 0b1) == 1
     }
 
-    /// Sets the bit of the given square.
+    /// Sets the bit representing the given `square`.
     pub fn set(&mut self, square: square::Square) {
         self.bits |= 0b1 << square.get_index()
     }
 
-    /// Clears the bit of the given square.
+    /// Clears the bit representing the given `square`.
     pub fn clear(&mut self, square: square::Square) {
         self.bits &= !(0b1 << square.get_index())
     }
 
-    /// Counts how many bits are set in the bitboard.
-    ///
-    /// This can be useful for different things depending on the context.
-    /// For example, if the bitboard represents squares taken by pieces of certain color,
-    /// this method returns the number of all pieces available to a certain player.
+    /// Counts how many bits of the bitboard are set.
     pub fn count_set(&self) -> u8 {
         self.bits.count_ones() as u8
     }
 
-    /// Returns the u64 which internally represents the entire bitboard.
+    /// Returns the `u64` which internally represents the entire bitboard.
     pub fn get_bits(&self) -> u64 {
         self.bits
     }
 
-    /// Returns an iterator which gives out [`square::Square`] set by this bitboard.
+    /// Returns an iterator which gives out a single [`square::Square`] item per
+    /// each square that's set on the bitboard.
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
     }
 
-    /// Returns the index of the least significant 1 bit.
+    /// Returns the index of the least significant bit set to 1.
     ///
-    /// To get usable results the user should make sure that
-    /// the bitboard actually has any bits set.
+    /// **NOTE**: To get usable results make sure that the bitboard
+    /// actually has any bits set.
     pub fn bitscan_forward(&self) -> u8 {
         u64::trailing_zeros(self.get_bits()) as u8
     }
 
-    /// Returns the index of the most significant 1 bit.
+    /// Returns the index of the most significant bit set to 1.
     ///
-    /// To get usable results the user should make sure that
-    /// the bitboard actually has any bits set.
+    /// **NOTE**: To get usable results make sure that the bitboard
+    /// actually has any bits set.
     pub fn bitscan_reverse(&self) -> u8 {
         (u64::leading_zeros(self.get_bits()) as u8) ^ 63
     }
 }
 
 impl From<u64> for Bitboard {
+    /// Creates a bitboard that uses the `v` value as its initial state.
+    ///
+    /// To create a bitboard with all of bits set to 0, use `Bitboard::default`.
     fn from(v: u64) -> Self {
         Self { bits: v }
     }
@@ -92,9 +154,9 @@ impl From<u64> for Bitboard {
 
 impl BitAnd for Bitboard {
     type Output = Bitboard;
-    
-    /// Returns [`Bitboard`] with its bits set to the result of
-    /// the bitwise AND with the other bitboard's bits.
+
+    /// Returns a bitboard holding the result of bitwise AND of bits of
+    /// `self` and `rhs`.
     #[inline]
     fn bitand(self, rhs: Bitboard) -> Self::Output {
         Bitboard::from(self.get_bits() & rhs.get_bits())
@@ -103,8 +165,9 @@ impl BitAnd for Bitboard {
 
 impl BitOr for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits set to the result of
-    /// the bitwise OR with the other bitboard's bits.
+
+    /// Returns a bitboard holding the result of bitwise OR of bits of
+    /// `self` and `rhs`.
     #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() | rhs.get_bits())
@@ -113,7 +176,7 @@ impl BitOr for Bitboard {
 
 impl Shl<u8> for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits shifted left.
+    /// Returns a bitboard with bits of `self` shifted left by `rhs` places.
     #[inline]
     fn shl(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() << rhs)
@@ -122,7 +185,7 @@ impl Shl<u8> for Bitboard {
 
 impl Shr<u8> for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits shifted right.
+    /// Returns a bitboard with bits of `self` shifted right by `rhs` places.
     #[inline]
     fn shr(self, rhs: u8) -> Self::Output {
         Bitboard::from(self.get_bits() >> rhs)
@@ -131,7 +194,7 @@ impl Shr<u8> for Bitboard {
 
 impl Not for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits negated.
+    /// Returns a bitboard with negated bits of `self`.
     #[inline]
     fn not(self) -> Self::Output {
         Bitboard::from(!self.get_bits())
@@ -140,8 +203,8 @@ impl Not for Bitboard {
 
 impl BitXor for Bitboard {
     type Output = Bitboard;
-    /// Returns [`Bitboard`] with its bits set to the result of
-    /// the bitwise XOR with the other bitboard's bits.
+    /// Returns a bitboard holding the result of bitwise XOR of bits of
+    /// `self` and `rhs`.
     #[inline]
     fn bitxor(self, rhs: Self) -> Self::Output {
         Bitboard::from(self.get_bits() ^ rhs.get_bits())
@@ -164,8 +227,8 @@ impl Debug for Bitboard {
     }
 }
 
-/// Iterator which returns [`square::Square`] objects of all bits
-/// that are set on the bitboard.
+/// Iterator which returns a single [`square::Square`] per every bit that's set
+/// on the bitboard.
 #[derive(Clone, Copy)]
 pub struct SquareIter {
     bits: u64,
@@ -186,10 +249,10 @@ impl Iterator for SquareIter {
     type Item = square::Square;
 
     /// Advances the iterator and returns the next [`square::Square`] that's
-    /// set on the bitboard. Because of the way this iterator works, each next
-    /// square is given out in order left-to-right and bottom-to-top.
+    /// set on the bitboard. This iterator guarantees that each next square
+    /// has a bigger index than the previous square.
     ///
-    /// It's guaranteed that:
+    /// The ordering guarantee means that:
     /// - 'a1' will always be given out before 'b1', 'b1' before 'c1', etc.
     /// - squares from rank '1' will always be given out before squares from rank '2', etc.
     fn next(&mut self) -> Option<Self::Item> {

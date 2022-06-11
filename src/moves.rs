@@ -1,10 +1,13 @@
+//! This module contains structs and enums which represent moves between two squares
+//! on the chessboard.
+
 use std::fmt::Debug;
 
 use crate::context;
 use crate::piece;
 use crate::square;
 
-/// Represents a move between two squares.
+/// An immutable move which simply stores the information about the start and the target square.
 #[derive(PartialEq, Copy, Clone, Eq, Hash)]
 pub struct Move {
     start: square::Square,
@@ -12,7 +15,7 @@ pub struct Move {
 }
 
 impl Move {
-    /// Returns a [`Move`] between start and target squares.
+    /// Creates a [`Move`] between `start` and `target` squares.
     pub fn new(start: square::Square, target: square::Square) -> Self {
         Self { start, target }
     }
@@ -31,7 +34,7 @@ impl Move {
 impl TryFrom<&str> for Move {
     type Error = &'static str;
 
-    /// Creates a [`Move`] out of 4 ascii characters that represent two squares between
+    /// Creates a [`Move`] from 4 ascii characters that represent two squares between
     /// which a piece moves. First two characters represent the start square,
     /// and the other two characters represent the target square.
     ///
@@ -75,36 +78,25 @@ impl Debug for Move {
     }
 }
 
-/// Represents a move between two squares as it would be represented in the
-/// UCI notation.
+/// A move between two squares represented in the UCI notation.
 ///
 /// Example moves in this notation:
-/// - 'e2e4'
-/// - 'e1g1'
-/// - 'e1c1'
-/// - 'e7d8n'
-/// - 'e7e8q'
+/// - "e2e4"
+/// - "e1g1"
+/// - "e1c1"
+/// - "e7d8n"
+/// - "e7e8q"
 ///
-/// This notation is obviously context dependent. For example "e2e4" might
-/// represent a move of a pawn, rook or queen. Until it's checked what piece
-/// is placed on the e2 square, there is no information about what kind of move
-/// this notation describes.
+/// All moves which are represented by 5 characters are moves that promote pawns.
+/// The last character symbolizes the type of piece that is supposed to appear on the
+/// board during the promotion.
 ///
-/// That also means that without seeing the board, there is no way to
-/// differentiate between a regular pawn capture and en-passant capture,
-/// because both can be represented identically.
-///
-/// A move represents castling if the king still has the right to castle
-/// and it's being moved from its original square two squares to either side (depending
-/// on whether it's kingside or queenside castling).
-///
-/// Only promoting moves require additional information, so that it's known what
-/// kind of piece is supposed to appear on the board during pawn promotion.
-///
+/// All other moves are represented by 4 characters. These moves can be:
+/// - capturing (regular captures, en passant captures)
+/// - noncapturing (castling, moving piece from one square to another)
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum UCIMove {
-    /// Represents piece moves (including captures, but without pawn promotions),
-    /// castling, en-passant captures.
+    /// Represents any move that is NOT a pawn promotion.
     Regular { m: Move },
     /// Represents a move that promotes a pawn.
     Promotion { m: Move, k: piece::Kind },
@@ -126,7 +118,8 @@ impl Debug for UCIMove {
 impl TryFrom<&str> for UCIMove {
     type Error = &'static str;
 
-    /// Creates a [`UCIMove`] out of 4 or 5 ascii characters.
+    /// Creates a [`UCIMove`] from 4 or 5 ascii characters.
+    ///
     /// First 4 characters always represent two squares between which a piece moves.
     /// First two characters represent the start square, and the other two characters
     /// represent the target square.
@@ -136,12 +129,11 @@ impl TryFrom<&str> for UCIMove {
     /// start and target square information.
     ///
     /// If an additional, 5th character is provided, then the returned enum's variant
-    /// will be [`UCIMove::Promotion`] and apart from containing a [`Move`] object,
-    /// it will also contain a [`piece::Kind`] that holds the information about the
-    /// piece that is supposed to appear on the board after the pawn promotion.
+    /// will be [`UCIMove::Promotion`] which, apart from containing a [`Move`] object,
+    /// also contains information about the type of piece that is supposed to appear 
+    /// on the board during the pawn promotion.
     /// This 5th character must be a valid character that represents a piece that's not
     /// a pawn or a king.
-    ///
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if !value.is_ascii() {
             Err("cannot create uci move from str containing non-ascii chars")
@@ -175,19 +167,15 @@ impl TryFrom<&str> for UCIMove {
     }
 }
 
-/// Represents a move that has appeared on the chessboard and is reversible. Stores all information
-/// that is required for undoing the move.
+/// A history entry of a move that has appeared on the chessboard.
 ///
-/// Every move needs to save [`context::Context`] of the chessboard that was there before
-/// the move appeared on the board. This is required, because not restoring the state
-/// of the context after undoing a move results in incorrect state of the board, e.g.:
-/// - incorrect move counter value
-/// - losing information about a possibility of capturing en passant
-/// - losing information about a possiblity of castling
-///
+/// Every variant of this enum contains a `Context`. This field should be used for
+/// storing the copy of chessboard's context state that was valid for the previous move.
+/// Undoing a move should not only include moving pieces to their previous squares, but also
+/// restoring the context that was valid for the previous board state.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TakenMove {
-    /// Represents piece moves (including captures, but without pawn promotions).
+    /// Represents all moves that are not pawn promotions, en passant captures, or castling.
     PieceMove {
         m: Move,
         captured_piece: Option<piece::Piece>,
