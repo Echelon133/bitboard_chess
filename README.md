@@ -50,3 +50,28 @@ let mv = UCIMove::try_from("e7e5").unwrap();
 let result = board.execute_move(&mv);
 assert_eq!(result.unwrap_err(), ChessboardError::GameAlreadyFinished);
 ```
+
+## perft
+
+This crate includes an implementation of a [perft](https://www.chessprogramming.org/Perft)
+function, which explores all possible nodes of a position and counts all leaf nodes of a certain depth.
+
+Example perft run for a position represented by FEN string "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1".
+```
+// cargo test --release perft_fourth_position -- --show-output
+================NODES===============
+f1f2: 2703427
+f3d4: 2928923
+g1h1: 3212083
+b4c5: 2027632
+d2d4: 2816009
+c4c5: 2145218
+====================================
+============PERFT RESULTS============
+ D|       Nodes|  Checkmates|  Captures|     E.p| Castles| Promotions|  Checks
+ 1|           6|           0|         0|       0|       0|          0|       0
+ 2|         264|           0|        87|       0|       6|         48|      10
+ 3|        9467|          22|      1021|       4|       0|        120|      38
+ 4|      422333|           5|    131393|       0|    7795|      60032|   15492
+ 5|    15833292|       50562|   2046173|    6512|       0|     329464|  200568
+```
