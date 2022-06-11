@@ -130,8 +130,8 @@ impl TryFrom<&str> for UCIMove {
     ///
     /// If an additional, 5th character is provided, then the returned enum's variant
     /// will be [`UCIMove::Promotion`] which, apart from containing a [`Move`] object,
-    /// also contains a [`piece::Kind`] that holds the information about the
-    /// piece that is supposed to appear on the board during the pawn promotion.
+    /// also contains information about the type of piece that is supposed to appear 
+    /// on the board during the pawn promotion.
     /// This 5th character must be a valid character that represents a piece that's not
     /// a pawn or a king.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -169,7 +169,7 @@ impl TryFrom<&str> for UCIMove {
 
 /// A history entry of a move that has appeared on the chessboard.
 ///
-/// Every variant of this enum contains a [`context::Context`]. This field should be used for
+/// Every variant of this enum contains a `Context`. This field should be used for
 /// storing the copy of chessboard's context state that was valid for the previous move.
 /// Undoing a move should not only include moving pieces to their previous squares, but also
 /// restoring the context that was valid for the previous board state.
