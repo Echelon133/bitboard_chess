@@ -1,7 +1,7 @@
 //! This module contains all functions which are used during pseudo-legal move generation and
 //! during checking moves for their legality.
 //!
-//! All move generating functions return an iterator which gives out all pseudo-legal moves of a
+//! All move generating functions return an iterator which returns all pseudo-legal moves of a
 //! particular piece in a particular position on the board. These pseudo-legal moves have to be
 //! checked for their legality (e.g. they mustn't put player's own king
 //! in check, mustn't allow illegal castling, etc.) before they are played on the board.
@@ -30,7 +30,7 @@ pub struct MoveIter {
 }
 
 impl MoveIter {
-    /// Creates an iterator which gives out [`moves::UCIMove`] which start on
+    /// Creates an iterator which returns [`moves::UCIMove`] which start on
     /// `start_square` and end on squares that are set in `targets` bitboard.
     ///
     /// If `promoting` is set to `true`, for every square set in `targets` bitboard there

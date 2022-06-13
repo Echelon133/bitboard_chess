@@ -92,7 +92,7 @@ impl MoveIterIter {
 impl Iterator for MoveIterIter {
     type Item = movegen::MoveIter;
 
-    /// Advances the iterator and gives out a `MoveIter` which contains all
+    /// Advances the iterator and returns a `MoveIter` which contains all
     /// pseudo-legal moves of a single piece on the board.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(occupied_square) = self.own_pieces.next() {

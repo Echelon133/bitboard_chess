@@ -120,7 +120,7 @@ impl Bitboard {
         self.bits
     }
 
-    /// Returns an iterator which gives out a single [`square::Square`] item per
+    /// Returns an iterator which returns a single [`square::Square`] item per
     /// each square that's set on the bitboard.
     pub fn iter(&self) -> SquareIter {
         SquareIter::new(self)
