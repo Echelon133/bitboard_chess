@@ -20,7 +20,7 @@
 /// 00000000 // 0x00
 /// ```
 ///
-pub static WHITE_PAWN_ATTACK_PATTERNS: [u64; 64] = [
+pub const WHITE_PAWN_ATTACK_PATTERNS: [u64; 64] = [
     0x200,
     0x500,
     0xa00,
@@ -105,7 +105,7 @@ pub static WHITE_PAWN_ATTACK_PATTERNS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static BLACK_PAWN_ATTACK_PATTERNS: [u64; 64] = [
+pub const BLACK_PAWN_ATTACK_PATTERNS: [u64; 64] = [
     0x0,
     0x0,
     0x0,
@@ -196,7 +196,7 @@ pub static BLACK_PAWN_ATTACK_PATTERNS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
+pub const KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
     0x20400,
     0x50800,
     0xa1100,
@@ -287,7 +287,7 @@ pub static KNIGHT_ATTACK_PATTERNS: [u64; 64] = [
 /// 01000000 // 0x02
 /// ```
 ///
-pub static KING_ATTACK_PATTERNS: [u64; 64] = [
+pub const KING_ATTACK_PATTERNS: [u64; 64] = [
     0x302,
     0x705,
     0xe0a,
@@ -371,7 +371,7 @@ pub static KING_ATTACK_PATTERNS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static NORTH_ATTACK_RAYS: [u64; 64] = [
+pub const NORTH_ATTACK_RAYS: [u64; 64] = [
     0x101010101010100,
     0x202020202020200,
     0x404040404040400,
@@ -455,7 +455,7 @@ pub static NORTH_ATTACK_RAYS: [u64; 64] = [
 /// 01000000 // 0x02
 /// ```
 ///
-pub static SOUTH_ATTACK_RAYS: [u64; 64] = [
+pub const SOUTH_ATTACK_RAYS: [u64; 64] = [
     0x0,
     0x0,
     0x0,
@@ -539,7 +539,7 @@ pub static SOUTH_ATTACK_RAYS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static EAST_ATTACK_RAYS: [u64; 64] = [
+pub const EAST_ATTACK_RAYS: [u64; 64] = [
     0xfe,
     0xfc,
     0xf8,
@@ -623,7 +623,7 @@ pub static EAST_ATTACK_RAYS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static WEST_ATTACK_RAYS: [u64; 64] = [
+pub const WEST_ATTACK_RAYS: [u64; 64] = [
     0x0,
     0x1,
     0x3,
@@ -707,7 +707,7 @@ pub static WEST_ATTACK_RAYS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static NORTHEAST_ATTACK_RAYS: [u64; 64] = [
+pub const NORTHEAST_ATTACK_RAYS: [u64; 64] = [
     0x8040201008040200,
     0x80402010080400,
     0x804020100800,
@@ -791,7 +791,7 @@ pub static NORTHEAST_ATTACK_RAYS: [u64; 64] = [
 /// 00000000 // 0x00
 /// ```
 ///
-pub static NORTHWEST_ATTACK_RAYS: [u64; 64] = [
+pub const NORTHWEST_ATTACK_RAYS: [u64; 64] = [
     0x0,
     0x100,
     0x10200,
@@ -875,7 +875,7 @@ pub static NORTHWEST_ATTACK_RAYS: [u64; 64] = [
 /// 00100000 // 0x04
 /// ```
 ///
-pub static SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
+pub const SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
     0x0,
     0x0,
     0x0,
@@ -959,7 +959,7 @@ pub static SOUTHEAST_ATTACK_RAYS: [u64; 64] = [
 /// 10000000 // 0x01
 /// ```
 ///
-pub static SOUTHWEST_ATTACK_RAYS: [u64; 64] = [
+pub const SOUTHWEST_ATTACK_RAYS: [u64; 64] = [
     0x0,
     0x0,
     0x0,
